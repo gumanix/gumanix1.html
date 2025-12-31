@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="sk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Headball 2 — plná verzia (menu, bot, opravy)</title>
+  <style>
+    html,body{height:100%;margin:0;background:#061026;color:#fff;font-family:Inter,Arial}
+    .wrap{display:flex;flex-direction:column;align-items:center;padding:12px;gap:10px}
+    .topbar{display:flex;gap:12px;align-items:center}
+    canvas{background:#071022;border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,0.8)}
+    .scoreboard{font-size:22px;padding:10px 18px;background:linear-gradient(180deg,rgba(255,255,255,0.03),rgba(0,0,0,0.08));border-radius:8px}
+    .controls{display:flex;gap:16px;align-items:center;background:rgba(255,255,255,0.02);padding:10px;border-radius:8px;flex-wrap:wrap}
+    label{font-size:13px}
+    input[type=color]{width:40px;height:30px;border:0;padding:0;background:none}
+    select,input[type=checkbox]{transform:scale(1.0)}
+    button{padding:8px 12px;border-radius:8px;border:0;background:#2a9;cursor:pointer}
+    .small{font-size:12px;opacity:.95}
+    @media (max-width:1000px){canvas{width:100%}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="scoreboard" id="scoreboard">Hráč 1 0 — 0 Hráč 2 (do 7)</div>
+      <button id="newGame">Nová hra</button>
+    </div>
+
+    <div class="controls">
+      <div>
+        <div><strong>Hráč 1 (šipky)</strong></div>
+        <label>Farba tela: <input id="p1Body" type="color" value="#ff6b6b"></label>
+        <label>Farba kopačky: <input id="p1Boot" type="color" value="#0c0c0c"></label>
+      </div>
+      <div>
+        <div><strong>Hráč 2 (WASD alebo bot)</strong></div>
+        <label>Farba tela: <input id="p2Body" type="color" value="#4dd0e1"></label>
+        <label>Farba kopačky: <input id="p2Boot" type="color" value="#0c0c0c"></label>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;min-width:220px;">
+        <label><input id="vsBot" type="checkbox"> Hrať proti botovi</label>
+        <label>Úroveň bota: <select id="botDiff"><option value="0.8">Ľahký</option><option value="1">Stredný</option><option value="1.3">Ťažký</option></select></label>
+        <label><input id="showReach" type="checkbox" checked> Zobraziť dosah pri skoku</label>
+      </div>
+      <div class="small">H1: šípky ← → = pohyb, ↑ = skok, ↓ = strela. H2: A/D = pohyb, W = skok, S = strela.</div>
+    </div>
+
+    <canvas id="game" width="1100" height="520"></canvas>
+  </div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  // UI elements
+  const p1BodyInput = document.getElementById('p1Body');
+  const p1BootInput = document.getElementById('p1Boot');
+  const p2BodyInput = document.getElementById('p2Body');
+  const p2BootInput = document.getElementById('p2Boot');
+  const vsBotCheckbox = document.getElementById('vsBot');
+  const botDiffSelect = document.getElementById('botDiff');
+  const newGameBtn = document.getElementById('newGame');
+  const showReachCheckbox = document.getElementById('showReach');
+
+  // World
+  const gravity = 0.95;
+  const groundY = H - 64;
+  const WIN_SCORE = 7;
+  let gameOver = false;
+
+  // Goals
+  const goalOpening = 160;
+  const leftGoal = { x: 40, y: groundY - goalOpening, w: 14, h: goalOpening };
+  const rightGoal = { x: W - 40 - 14, y: groundY - goalOpening, w: 14, h: goalOpening };
+
+  // Input state
+  const keys = {};             // current keys held
+  const jumpBuffer = {};       // allow one-shot jump triggers per keydown
+  const pressedOnce = {};      // shooting single-press
+
+  // Player class
+  class Player {
+    constructor(x, color, bootColor, controls, label) {
+      this.x = x; this.y = groundY - 30; this.r = 30;
+      this.vx = 0; this.vy = 0;
+      this.color = color; this.bootColor = bootColor;
+      this.onGround = false;
+      this.controls = controls;
+      this.score = 0;
+      this.facing = x < W/2 ? 1 : -1;
+      this.label = label;
+    }
+    update() {
+      if (gameOver) return;
+      if (keys[this.controls.left]) { this.vx = Math.max(this.vx - 1.3, -8); this.facing = -1; }
+      if (keys[this.controls.right]) { this.vx = Math.min(this.vx + 1.3, 8); this.facing = 1; }
+      // single-trigger jump via jumpBuffer
+      if (keys[this.controls.jump] && this.onGround && jumpBuffer[this.controls.jump]) {
+        this.vy = -18;
+        this.onGround = false;
+        jumpBuffer[this.controls.jump] = false;
+      }
+      this.vy += gravity;
+      this.x += this.vx; this.y += this.vy;
+      if (this.y + this.r > groundY) { this.y = groundY - this.r; this.vy = 0; this.onGround = true; } else this.onGround = false;
+      if (this.x - this.r < 0) { this.x = this.r; this.vx = 0; }
+      if (this.x + this.r > W) { this.x = W - this.r; this.vx = 0; }
+      this.vx *= this.onGround ? 0.82 : 0.996;
+    }
+    draw(showReach=false) {
+      // shadow
+      ctx.beginPath(); ctx.ellipse(this.x, groundY + 8, this.r * 0.95, 12, 0, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fill();
+      // body
+      ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI*2); ctx.fillStyle = this.color; ctx.fill();
+      // eye
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(this.x + this.facing*8, this.y - 6, 5, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(this.x + this.facing*9, this.y - 6, 2, 0, Math.PI*2); ctx.fill();
+      // boot
+      const bootW = 36, bootH = 18;
+      const bx = this.x + this.facing * 12;
+      const by = this.y + this.r - 6;
+      ctx.save(); ctx.translate(bx, by);
+      const rot = this.onGround ? (this.vx * -0.02) : (this.vy < 0 ? -0.6 : -0.15);
+      ctx.rotate(rot);
+      ctx.beginPath(); ctx.moveTo(-bootW/2, 0); ctx.lineTo(bootW/2, 0); ctx.lineTo(bootW/2 + 10, -bootH/2); ctx.lineTo(-bootW/2 + 8, -bootH); ctx.closePath();
+      ctx.fillStyle = this.bootColor || '#0c0c0c'; ctx.fill();
+      // studs
+      for (let i= -12;i<=12;i+=12){ ctx.beginPath(); ctx.arc(i, 3, 3, 0, Math.PI*2); ctx.fillStyle = '#ffd'; ctx.fill(); }
+      ctx.restore();
+      // label
+      ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.font = '12px sans-serif'; ctx.textAlign='center'; ctx.fillText(this.label, this.x, this.y + 4);
+      // reach circle
+      if (showReach){
+        const reachBonus = this.vy < -6 ? 16 : (this.vy < -2 ? 8 : 0);
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.r + reachBonus + 22, 0, Math.PI*2);
+        ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.setLineDash([6,6]); ctx.stroke(); ctx.setLineDash([]);
+      }
+    }
+  }
+
+  // Ball with improved physics
+  class Ball {
+    constructor() { this.r = 22; this.mass = 1; this.maxSpeed = 28; this.reset(); }
+    reset() { this.x = W/2; this.y = H/2 - 30; this.vx = 0; this.vy = 0; this.inGoal = null; }
+    update() {
+      if (gameOver) return;
+      this.vy += gravity * 0.62;
+      this.x += this.vx; this.y += this.vy;
+      if (this.y + this.r > groundY) {
+        this.y = groundY - this.r;
+        if (Math.abs(this.vy) > 0.5) this.vy *= -0.46; else this.vy = 0;
+        this.vx *= 0.995;
+      }
+      if (this.x - this.r < 0) { this.x = this.r; this.vx = Math.max(-this.vx * 0.7, -this.maxSpeed); }
+      if (this.x + this.r > W) { this.x = W - this.r; this.vx = Math.min(-this.vx * 0.7, this.maxSpeed); }
+      // clamp
+      const spd = Math.hypot(this.vx, this.vy);
+      if (spd > this.maxSpeed) { this.vx = this.vx / spd * this.maxSpeed; this.vy = this.vy / spd * this.maxSpeed; }
+      // clear inGoal if leaves area
+      if (this.inGoal === 'left') {
+        if (!(this.x - this.r <= leftGoal.x + leftGoal.w && this.y > leftGoal.y && this.y < leftGoal.y + leftGoal.h)) this.inGoal = null;
+      }
+      if (this.inGoal === 'right') {
+        if (!(this.x + this.r >= rightGoal.x && this.y > rightGoal.y && this.y < rightGoal.y + rightGoal.h)) this.inGoal = null;
+      }
+    }
+    draw() {
+      ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI*2); ctx.fillStyle = '#fff'; ctx.fill();
+      ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.stroke();
+      // patches
+      ctx.fillStyle = '#000';
+      [[0,-8],[9,-2],[6,10],[-8,6],[-10,-2]].forEach(p=>{ ctx.beginPath(); ctx.ellipse(this.x+p[0], this.y+p[1], 10, 8,0,0,Math.PI*2); ctx.fill(); });
+      ctx.strokeStyle='rgba(0,0,0,0.06)'; ctx.lineWidth=0.8; ctx.beginPath(); ctx.arc(this.x,this.y,this.r-2,-0.8,2.4); ctx.stroke();
+    }
+  }
+
+  // Instances
+  const player1 = new Player(180, p1BodyInput.value, p1BootInput.value, { left:'ArrowLeft', right:'ArrowRight', jump:'ArrowUp', shoot:'ArrowDown' }, '1');
+  const player2 = new Player(W-180, p2BodyInput.value, p2BootInput.value, { left:'KeyA', right:'KeyD', jump:'KeyW', shoot:'KeyS' }, '2');
+  const ball = new Ball();
+
+  // Keyboard events - keep simple and reliable
+  window.addEventListener('keydown', (e) => {
+    keys[e.code] = true;
+    // mark jump buffer on press (so update() consumes it once)
+    if (e.code === player1.controls.jump || e.code === player2.controls.jump) jumpBuffer[e.code] = true;
+    // mark single-shot shoots
+    if (e.code === player1.controls.shoot || e.code === player2.controls.shoot) {
+      if (!pressedOnce[e.code]) pressedOnce[e.code] = true;
+    }
+  });
+  window.addEventListener('keyup', (e) => {
+    keys[e.code] = false;
+    jumpBuffer[e.code] = false;
+    pressedOnce[e.code] = false;
+  });
+
+  // Collision and resolution: robust circle-circle impulse with positional correction
+  function resolvePlayerBall(p) {
+    const dx = ball.x - p.x; const dy = ball.y - p.y; const dist = Math.hypot(dx,dy);
+    const reachBonus = p.vy < -6 ? 16 : (p.vy < -2 ? 8 : 0);
+    const minDist = p.r + reachBonus + ball.r;
+    if (dist === 0) { ball.x += 1; return; }
+    if (dist < minDist) {
+      const penetration = minDist - dist;
+      const nx = dx / dist, ny = dy / dist;
+      const correction = penetration + 0.5;
+      ball.x += nx * correction; ball.y += ny * correction;
+      // relative velocity
+      const rvx = ball.vx - p.vx, rvy = ball.vy - p.vy;
+      const relVelAlongNormal = rvx * nx + rvy * ny;
+      const e = 0.6; // restitution
+      let j = 0;
+      if (relVelAlongNormal < 0) {
+        j = -(1 + e) * relVelAlongNormal;
+        j = j / (1/ball.mass); // player considered infinite mass
+      }
+      ball.vx += (j * nx);
+      ball.vy += (j * ny);
+      // player influence
+      ball.vx += p.vx * 0.28;
+      ball.vy += p.vy * 0.18;
+      // cap speed
+      const max = ball.maxSpeed; const s = Math.hypot(ball.vx, ball.vy);
+      if (s > max) { ball.vx = (ball.vx/s)*max; ball.vy = (ball.vy/s)*max; }
+      if (p.vy < -6) { ball.vy -= 2; } // extra when player jumps into ball
+    }
+  }
+
+  // Shooting logic (single-press)
+  const shootRange = 130;
+  function handleShooting(player) {
+    const key = player.controls.shoot;
+    if (pressedOnce[key]) {
+      const dx = ball.x - player.x; const dy = ball.y - player.y; const dist = Math.hypot(dx,dy);
+      if (dist < shootRange) {
+        const nx = dx/(dist||1), ny = dy/(dist||1);
+        ball.vx += nx*18 + player.vx*0.6;
+        ball.vy += ny*12 - 8;
+      } else {
+        // long-range nudge forward
+        ball.vx += player.facing * 10;
+        ball.vy -= 6;
+      }
+      pressedOnce[key] = false;
+    }
+  }
+
+  // Goals: count reliably once per crossing using ball.inGoal
+  let goalTimer = 0, lastScorer = null;
+  function checkGoal() {
+    if (goalTimer > 0) return;
+    // left goal
+    if (ball.x - ball.r <= leftGoal.x + leftGoal.w && ball.y > leftGoal.y && ball.y < leftGoal.y + leftGoal.h) {
+      if (ball.inGoal !== 'left') {
+        ball.inGoal = 'left';
+        player2.score++; lastScorer = player2; onGoal();
+      }
+      return;
+    }
+    // right goal
+    if (ball.x + ball.r >= rightGoal.x && ball.y > rightGoal.y && ball.y < rightGoal.y + rightGoal.h) {
+      if (ball.inGoal !== 'right') {
+        ball.inGoal = 'right';
+        player1.score++; lastScorer = player1; onGoal();
+      }
+      return;
+    }
+  }
+  function onGoal() {
+    updateScoreboard();
+    goalTimer = 110; // pause
+    ball.vx = ball.vy = 0;
+    if (player1.score >= WIN_SCORE || player2.score >= WIN_SCORE) { gameOver = true; goalTimer = 220; }
+  }
+  function updateScoreboard() {
+    document.getElementById('scoreboard').textContent = `Hráč 1 ${player1.score} — ${player2.score} Hráč 2 (do ${WIN_SCORE})`;
+  }
+
+  // Simple player-player separation
+  function resolvePlayers() {
+    const dx = player2.x - player1.x, dy = player2.y - player1.y;
+    const dist = Math.hypot(dx,dy); const min = player1.r + player2.r;
+    if (dist < min && dist > 0) {
+      const overlap = min - dist; const nx = dx/dist;
+      player1.x -= nx*(overlap*0.5); player2.x += nx*(overlap*0.5);
+      const tv = player1.vx; player1.vx = player2.vx*0.6; player2.vx = tv*0.6;
+    }
+  }
+
+  // Stadium + grass + goals drawing (3D-ish)
+  function drawStadium(ctx) {
+    ctx.fillStyle = '#0e2340'; ctx.fillRect(0,0,W,120);
+    const rows = 6, cols = 80;
+    for (let r=0;r<rows;r++){
+      for (let c=0;c<cols;c++){
+        const gx = (c/cols)*W + (r%2?4:0);
+        const gy = 30 + r*12 + Math.sin((c+r)*0.3)*2;
+        ctx.fillStyle = `hsl(${(c*7 + r*20)%360} 60% 50% / 0.9)`;
+        ctx.beginPath(); ctx.ellipse(gx, gy, 4, 4, 0, 0, Math.PI*2); ctx.fill();
+      }
+    }
+    ctx.fillStyle = '#ffcc00'; ctx.fillRect(40,110,220,12);
+    ctx.fillStyle = '#2a9'; ctx.fillRect(W-260,110,220,12);
+  }
+  function drawGrass(ctx) {
+    const grad = ctx.createLinearGradient(0,groundY,0,H); grad.addColorStop(0,'#1fa24b'); grad.addColorStop(1,'#136636');
+    ctx.fillStyle = grad; ctx.fillRect(0,groundY,W,H-groundY);
+    ctx.lineWidth = 1;
+    for (let x=0;x<W; x+=6){
+      const h = 18 + (x%14);
+      ctx.beginPath(); ctx.moveTo(x, groundY + Math.random()*6); ctx.quadraticCurveTo(x+2, groundY-h/2, x+4, groundY);
+      ctx.strokeStyle = 'rgba(5,60,20,0.12)'; ctx.stroke();
+    }
+  }
+  function drawGoal3D(ctx, g, flip=false) {
+    ctx.save();
+    const depth = 60;
+    const backX1 = flip ? g.x - depth : g.x + g.w + depth;
+    const backX0 = flip ? g.x : g.x + g.w;
+    ctx.fillStyle = 'rgba(0,0,0,0.08)';
+    ctx.beginPath(); ctx.moveTo(backX0, g.y - g.h); ctx.lineTo(backX1, g.y - g.h + 12); ctx.lineTo(backX1, g.y + 12); ctx.lineTo(backX0, g.y + 12); ctx.closePath(); ctx.fill();
+    if (!flip) { ctx.fillStyle='#fff'; ctx.fillRect(g.x, g.y - g.h, g.w, g.h); ctx.fillRect(g.x, g.y - g.h, depth + g.w, 10); }
+    else { ctx.fillStyle='#fff'; ctx.fillRect(g.x, g.y - g.h, g.w, g.h); ctx.fillRect(g.x - depth, g.y - g.h, depth + g.w, 10); }
+    ctx.strokeStyle='rgba(255,255,255,0.12)'; ctx.lineWidth=1;
+    for (let i=0;i<12;i++){ const t=i/12; const sx = !flip ? g.x + g.w + t*depth : g.x - t*depth; ctx.beginPath(); ctx.moveTo(sx, g.y - g.h + t*(g.h)); ctx.lineTo(sx + (flip? -40 : 40), g.y - g.h + t*(g.h) + 18); ctx.stroke(); }
+    for (let j=0;j<8;j++){ const t=j/8; ctx.beginPath(); ctx.moveTo(g.x - 10, g.y - g.h + t*(g.h)); ctx.lineTo(!flip ? g.x + g.w + depth + 40 : g.x - depth - 40, g.y - g.h + t*(g.h) + 18); ctx.stroke(); }
+    ctx.restore();
+  }
+
+  // Bot logic (does not lock keys when disabled)
+  function updateBot(player, diff) {
+    if (!vsBotCheckbox.checked || gameOver) return;
+    const react = parseFloat(diff || 1);
+    const targetX = ball.x + ball.vx * 8 * react;
+    const toTarget = targetX - player.x;
+    if (Math.abs(toTarget) > 10) {
+      if (toTarget > 0) { keys[player.controls.left] = false; keys[player.controls.right] = true; }
+      else { keys[player.controls.right] = false; keys[player.controls.left] = true; }
+    } else {
+      keys[player.controls.left] = false; keys[player.controls.right] = false;
+    }
+    // jump if appropriate
+    if (ball.y < player.y - 10 && Math.abs(ball.x - player.x) < 60 && player.onGround && Math.random() < 0.9 * react) {
+      jumpBuffer[player.controls.jump] = true;
+      keys[player.controls.jump] = true;
+      setTimeout(()=>{ keys[player.controls.jump] = false; jumpBuffer[player.controls.jump] = false; }, 120);
+    }
+    // shoot directly (bot impulse) when near
+    const dist = Math.hypot(ball.x - player.x, ball.y - player.y);
+    if (dist < shootRange - 8 && Math.random() < 0.4 * react) {
+      // direct kick instead of setting pressedOnce (reliable)
+      const nx = (ball.x - player.x) / (dist || 1);
+      const ny = (ball.y - player.y) / (dist || 1);
+      ball.vx += nx * 16 + player.vx * 0.6;
+      ball.vy += ny * 10 - 8;
+    }
+  }
+
+  // Helper to clear bot keys when toggling off
+  function clearBotKeys() {
+    keys[player2.controls.left] = false;
+    keys[player2.controls.right] = false;
+    keys[player2.controls.jump] = false;
+    pressedOnce[player2.controls.shoot] = false;
+  }
+
+  // UI bindings
+  p1BodyInput.addEventListener('input', ()=>{ player1.color = p1BodyInput.value; });
+  p1BootInput.addEventListener('input', ()=>{ player1.bootColor = p1BootInput.value; });
+  p2BodyInput.addEventListener('input', ()=>{ player2.color = p2BodyInput.value; });
+  p2BootInput.addEventListener('input', ()=>{ player2.bootColor = p2BootInput.value; });
+
+  newGameBtn.addEventListener('click', ()=> {
+    player1.score = player2.score = 0; gameOver = false; ball.reset();
+    player1.x = 180; player2.x = W - 180; player1.vx = player1.vy = player2.vx = player2.vy = 0;
+    updateScoreboard();
+  });
+
+  vsBotCheckbox.addEventListener('change', ()=>{
+    if (!vsBotCheckbox.checked) clearBotKeys();
+  });
+
+  // Main loop
+  function loop(){
+    // Bot update only when enabled (do NOT clear keys here)
+    if (vsBotCheckbox.checked && !gameOver) {
+      updateBot(player2, botDiffSelect.value);
+    }
+
+    if (goalTimer > 0) {
+      goalTimer--;
+      if (goalTimer === 0 && !gameOver) {
+        ball.reset(); ball.vx = (Math.random()>0.5?1:-1)*2; ball.vy = -6;
+        player1.x = 180; player1.y = groundY - player1.r; player1.vx = player1.vy = 0;
+        player2.x = W - 180; player2.y = groundY - player2.r; player2.vx = player2.vy = 0;
+        lastScorer = null;
+      }
+    } else if (!gameOver) {
+      player1.update(); player2.update();
+      handleShooting(player1); handleShooting(player2);
+      ball.update();
+      resolvePlayerBall(player1); resolvePlayerBall(player2);
+      resolvePlayers();
+      checkGoal();
+    }
+
+    // draw
+    ctx.clearRect(0,0,W,H);
+    drawStadium(ctx);
+    drawGrass(ctx);
+
+    // center mark
+    ctx.beginPath(); ctx.arc(W/2, groundY - 10, 48, 0, Math.PI*2); ctx.strokeStyle='rgba(255,255,255,0.06)'; ctx.lineWidth=2; ctx.stroke();
+
+    drawGoal3D(ctx, leftGoal, false);
+    drawGoal3D(ctx, rightGoal, true);
+
+    ball.draw();
+    player1.draw(showReachCheckbox.checked);
+    player2.draw(showReachCheckbox.checked);
+
+    // overlays
+    if (goalTimer > 0 && lastScorer) {
+      ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(W/2-220, H/2-90, 440, 140);
+      ctx.fillStyle='#fff'; ctx.font='42px sans-serif'; ctx.textAlign='center'; ctx.fillText('GÓL!', W/2, H/2-30);
+      ctx.font='20px sans-serif'; ctx.fillText(lastScorer === player1 ? 'Hráč 1 skóroval' : 'Hráč 2 skóroval', W/2, H/2+6);
+      ctx.font='14px sans-serif'; ctx.fillText('Odpálime za moment...', W/2, H/2+36);
+    }
+
+    if (gameOver) {
+      const winner = player1.score >= WIN_SCORE ? player1 : player2;
+      ctx.fillStyle='rgba(0,0,0,0.76)'; ctx.fillRect(0,0,W,H);
+      ctx.fillStyle='#fff'; ctx.font='44px sans-serif'; ctx.textAlign='center'; ctx.fillText(`${winner.label} vyhral!`, W/2, H/2 - 10);
+      ctx.font='20px sans-serif'; ctx.fillText(`Skóre ${player1.score} — ${player2.score}`, W/2, H/2 + 26);
+      ctx.font='14px sans-serif'; ctx.fillText('Stlač „Nová hra“ aby si začal odznova.', W/2, H/2 + 56);
+    }
+
+    // scoreboard
+    ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(W/2-240,8,480,48);
+    ctx.fillStyle='#fff'; ctx.font='22px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(`Hráč 1 ${player1.score}  —  ${player2.score} Hráč 2   (do ${WIN_SCORE})`, W/2, 38);
+
+    requestAnimationFrame(loop);
+  }
+
+  // Start
+  updateScoreboard();
+  loop();
+})();
+</script>
+</body>
+</html>
