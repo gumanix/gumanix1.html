@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <title>Jednoduchá 2D Strieľačka</title>
+    <style>
+        body {
+            margin: 0;
+            background: #222;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: white;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        canvas {
+            border: 2px solid #fff;
+            background: #000;
+            display: block;
+        }
+        .ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="ui">Skóre: <span id="score">0</span></div>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const scoreElement = document.getElementById("score");
+
+        // Nastavenie veľkosti plochy
+        canvas.width = 600;
+        canvas.height = 400;
+
+        let score = 0;
+
+        // Hráč
+        const player = {
+            x: canvas.width / 2 - 20,
+            y: canvas.height - 50,
+            width: 40,
+            height: 40,
+            color: "#00FF00",
+            speed: 5
+        };
+
+        // Klávesy
+        const keys = {};
+        window.addEventListener("keydown", (e) => keys[e.code] = true);
+        window.addEventListener("keyup", (e) => keys[e.code] = false);
+
+        // Polia pre objekty
+        let bullets = [];
+        let enemies = [];
+
+        // Funkcia na vytvorenie nepriateľa
+        function spawnEnemy() {
+            const x = Math.random() * (canvas.width - 30);
+            enemies.push({ x: x, y: -30, width: 30, height: 30, color: "red", speed: 2 });
+        }
+
+        // Interval na vytváranie nepriateľov (každú sekundu)
+        setInterval(spawnEnemy, 1000);
+
+        function update() {
+            // Pohyb hráča
+            if ((keys["ArrowLeft"] || keys["KeyA"]) && player.x > 0) player.x -= player.speed;
+            if ((keys["ArrowRight"] || keys["KeyD"]) && player.x < canvas.width - player.width) player.x += player.speed;
+
+            // Strieľanie (Space) - ošetrené, aby nestrieľal "laser" pri držaní
+            if (keys["Space"]) {
+                if (bullets.length === 0 || bullets[bullets.length - 1].y < player.y - 20) {
+                    bullets.push({ x: player.x + player.width / 2 - 2, y: player.y, width: 5, height: 15, color: "yellow", speed: 7 });
+                }
+            }
+
+            // Pohyb nábojov
+            bullets.forEach((bullet, bIndex) => {
+                bullet.y -= bullet.speed;
+                // Odstránenie náboja mimo obrazovky
+                if (bullet.y < 0) bullets.splice(bIndex, 1);
+            });
+
+            // Pohyb nepriateľov
+            enemies.forEach((enemy, eIndex) => {
+                enemy.y += enemy.speed;
+
+                // Kontrola kolízie s nábojom
+                bullets.forEach((bullet, bIndex) => {
+                    if (
+                        bullet.x < enemy.x + enemy.width &&
+                        bullet.x + bullet.width > enemy.x &&
+                        bullet.y < enemy.y + enemy.height &&
+                        bullet.y + bullet.height > enemy.y
+                    ) {
+                        // Zásah!
+                        enemies.splice(eIndex, 1);
+                        bullets.splice(bIndex, 1);
+                        score += 10;
+                        scoreElement.innerText = score;
+                    }
+                });
+
+                // Odstránenie nepriateľa ak prejde spodkom
+                if (enemy.y > canvas.height) {
+                    enemies.splice(eIndex, 1);
+                    // Tu by sa dalo pridať "Game Over"
+                }
+            });
+        }
+
+        function draw() {
+            // Vyčistenie plochy
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Kreslenie hráča
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+
+            // Kreslenie nábojov (jasne viditeľné žlté čiary)
+            ctx.fillStyle = "yellow";
+            bullets.forEach(bullet => {
+                ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+            });
+
+            // Kreslenie nepriateľov
+            ctx.fillStyle = "red";
+            enemies.forEach(enemy => {
+                ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+            });
+
+            requestAnimationFrame(() => {
+                update();
+                draw();
+            });
+        }
+
+        // Spustenie hry
+        draw();
+    </script>
+</body>
+</html>
