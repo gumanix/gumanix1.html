@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+  <meta charset="UTF-8" />
+  <title>2D hra – Chyť štvorček</title>
+  <style>
+    body {
+      margin: 0;
+      background: #111;
+      color: white;
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    canvas {
+      background: #222;
+      margin-top: 20px;
+      border: 2px solid white;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎮 Chyť štvorček</h1>
+  <p>Ovládanie: šípky ⬅️ ⬆️ ➡️ ⬇️</p>
+  <p>Skóre: <span id="score">0</span></p>
+
+  <canvas id="game" width="500" height="400"></canvas>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    const player = { x: 50, y: 50, size: 20, speed: 4 };
+    const target = { x: 200, y: 150, size: 20 };
+
+    let score = 0;
+    const keys = {};
+
+    document.addEventListener("keydown", e => keys[e.key] = true);
+    document.addEventListener("keyup", e => keys[e.key] = false);
+
+    function movePlayer() {
+      if (keys["ArrowUp"]) player.y -= player.speed;
+      if (keys["ArrowDown"]) player.y += player.speed;
+      if (keys["ArrowLeft"]) player.x -= player.speed;
+      if (keys["ArrowRight"]) player.x += player.speed;
+
+      // hranice
+      player.x = Math.max(0, Math.min(canvas.width - player.size, player.x));
+      player.y = Math.max(0, Math.min(canvas.height - player.size, player.y));
+    }
+
+    function checkCollision() {
+      if (
+        player.x < target.x + target.size &&
+        player.x + player.size > target.x &&
+        player.y < target.y + target.size &&
+        player.y + player.size > target.y
+      ) {
+        score++;
+        document.getElementById("score").textContent = score;
+        target.x = Math.random() * (canvas.width - target.size);
+        target.y = Math.random() * (canvas.height - target.size);
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // hráč
+      ctx.fillStyle = "#4caf50";
+      ctx.fillRect(player.x, player.y, player.size, player.size);
+
+      // cieľ
+      ctx.fillStyle = "#f44336";
+      ctx.fillRect(target.x, target.y, target.size, target.size);
+    }
+
+    function gameLoop() {
+      movePlayer();
+      checkCollision();
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    gameLoop();
+  </script>
+</body>
+</html>
