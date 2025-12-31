@@ -2,210 +2,278 @@
 <html lang="sk">
 <head>
     <meta charset="UTF-8">
-    <title>Nočná Strieľačka na Kukláčov</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Kukláči - Mobilná Verzia</title>
     <style>
         body {
             margin: 0;
-            /* Tmavé pozadie stránky */
-            background: #111;
+            background: #050510;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             height: 100vh;
             color: white;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: sans-serif;
             overflow: hidden;
+            touch-action: none; /* Zabráni scrolovaniu pri hraní */
         }
         canvas {
-            border: 3px solid #444;
-            /* Tematické pozadie - nočná ulica/obloha */
-            background: linear-gradient(to bottom, #050510, #1a1a3a, #2a2a5a);
-            display: block;
-            box-shadow: 0 0 20px rgba(0, 100, 255, 0.2);
+            background: linear-gradient(to bottom, #050510, #1a1a3a);
+            border: 2px solid #444;
+            max-width: 100%;
+            max-height: 70vh;
         }
-        .ui {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            font-size: 24px;
-            font-weight: bold;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
-            background: rgba(0,0,0,0.5);
+        .hud {
+            display: flex;
+            gap: 15px;
             padding: 10px;
-            border-radius: 8px;
+            font-size: 18px;
+            background: rgba(0, 0, 0, 0.8);
+            width: 100%;
+            justify-content: center;
         }
-        .score-label { color: #00FF00; }
-        .escaped-label { color: #FF4444; margin-left: 20px; }
+        .ammo-text { color: #ffff00; }
+        .score-text { color: #00ff00; }
+        .lost-text { color: #ff4444; }
+
+        /* Mobilné ovládanie */
+        .controls {
+            display: flex;
+            width: 100%;
+            justify-content: space-around;
+            padding: 20px 0;
+            background: #111;
+        }
+        .btn {
+            width: 80px;
+            height: 80px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid #555;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            user-select: none;
+            -webkit-user-select: none;
+            font-weight: bold;
+            font-size: 24px;
+        }
+        .btn:active { background: rgba(255, 255, 255, 0.3); }
+        .fire-btn { background: rgba(255, 0, 0, 0.2); width: 100px; border-radius: 10px; }
+
+        /* Game Over obrazovka */
+        #gameOverScreen {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9);
+            padding: 40px;
+            text-align: center;
+            border: 3px solid red;
+            z-index: 10;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 20px;
+            cursor: pointer;
+            background: #222;
+            color: white;
+            border: 1px solid white;
+        }
     </style>
 </head>
 <body>
 
-    <div class="ui">
-        <span class="score-label">Zásahy: <span id="score">0</span></span>
-        <span class="escaped-label">Ušlo: <span id="escaped">0</span></span>
+    <div class="hud">
+        <div class="ammo-text">Náboje: <span id="ammo">30</span></div>
+        <div class="score-text">Zásahy: <span id="score">0</span></div>
+        <div class="lost-text">Ušlo: <span id="escaped">0</span>/20</div>
     </div>
+
     <canvas id="gameCanvas"></canvas>
+
+    <div id="gameOverScreen">
+        <h1 style="color: red;">KONIEC HRY</h1>
+        <p id="finalScore"></p>
+        <button onclick="resetGame()">Hrať znova</button>
+    </div>
+
+    <div class="controls">
+        <div class="btn" id="leftBtn">←</div>
+        <div class="btn fire-btn" id="fireBtn">PÁĽ</div>
+        <div class="btn" id="rightBtn">→</div>
+    </div>
 
     <script>
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
-        const scoreElement = document.getElementById("score");
-        const escapedElement = document.getElementById("escaped");
 
-        // Nastavenie veľkosti plochy
-        canvas.width = 700;
+        // Elementy UI
+        const ammoEl = document.getElementById("ammo");
+        const scoreEl = document.getElementById("score");
+        const escapedEl = document.getElementById("escaped");
+        const gameOverScreen = document.getElementById("gameOverScreen");
+        const finalScoreEl = document.getElementById("finalScore");
+
+        canvas.width = 400;
         canvas.height = 500;
 
-        let score = 0;
-        let escapedCount = 0;
+        let ammo, score, escaped, enemies, bullets, isGameOver;
 
-        // Hráč (reprezentujúci policajta/hrdinu)
+        function resetGame() {
+            ammo = 30;
+            score = 0;
+            escaped = 0;
+            enemies = [];
+            bullets = [];
+            isGameOver = false;
+            gameOverScreen.style.display = "none";
+            updateUI();
+        }
+
+        function updateUI() {
+            ammoEl.innerText = ammo;
+            scoreEl.innerText = score;
+            escapedEl.innerText = escaped;
+        }
+
         const player = {
-            x: canvas.width / 2 - 20,
-            y: canvas.height - 60,
+            x: 180,
+            y: 430,
             width: 40,
             height: 40,
-            color: "#3366FF", // Modrá farba
-            speed: 6
+            speed: 5
         };
 
-        // Klávesy
+        // Ovládanie (Klávesnica + Mobil)
         const keys = {};
         window.addEventListener("keydown", (e) => keys[e.code] = true);
         window.addEventListener("keyup", (e) => keys[e.code] = false);
 
-        let bullets = [];
-        let enemies = [];
+        // Dotykové ovládanie
+        const touch = { left: false, right: false };
+        document.getElementById("leftBtn").ontouchstart = () => touch.left = true;
+        document.getElementById("leftBtn").ontouchend = () => touch.left = false;
+        document.getElementById("rightBtn").ontouchstart = () => touch.right = true;
+        document.getElementById("rightBtn").ontouchend = () => touch.right = false;
+        document.getElementById("fireBtn").ontouchstart = (e) => { e.preventDefault(); shoot(); };
 
-        // Funkcia na vytvorenie nepriateľa (Kukláča)
-        function spawnEnemy() {
-            const radius = 20;
-            // Náhodná X pozícia, aby sa zmestil do obrazovky
-            const x = Math.random() * (canvas.width - radius * 2) + radius;
-            enemies.push({
-                x: x,
-                y: -radius * 2, // Začína nad obrazovkou
-                radius: radius,
-                // Pre zjednodušenú kolíziu si uchováme aj pomyselnú šírku/výšku
-                width: radius * 2,
-                height: radius * 2,
-                color: "#333", // Tmavosivá kukla
-                speed: 2 + Math.random() * 2 // Náhodná rýchlosť
-            });
+        function shoot() {
+            if (ammo > 0 && !isGameOver) {
+                bullets.push({ x: player.x + 18, y: player.y, w: 4, h: 15 });
+                ammo--;
+                updateUI();
+            }
         }
 
-        // Interval na vytváranie nepriateľov (každých 0.9 sekundy)
-        let spawnRate = 900;
-        setInterval(spawnEnemy, spawnRate);
-
-        function update() {
-            // Pohyb hráča
-            if ((keys["ArrowLeft"] || keys["KeyA"]) && player.x > 0) player.x -= player.speed;
-            if ((keys["ArrowRight"] || keys["KeyD"]) && player.x < canvas.width - player.width) player.x += player.speed;
-
-            // Strieľanie (Space)
+        // Strieľanie medzerníkom (pomalšie, aby sa nespamovalo)
+        let lastShot = 0;
+        function handleInput() {
+            if ((keys["ArrowLeft"] || keys["KeyA"] || touch.left) && player.x > 0) player.x -= player.speed;
+            if ((keys["ArrowRight"] || keys["KeyD"] || touch.right) && player.x < canvas.width - player.width) player.x += player.speed;
             if (keys["Space"]) {
-                 // Obmedzovač streľby (aby to nebol súvislý laser)
-                if (bullets.length === 0 || bullets[bullets.length - 1].y < player.y - 50) {
-                    // Náboj vylietava zo "zbrane" (posunuté Y trochu vyššie)
-                    bullets.push({
-                        x: player.x + player.width / 2 - 2.5,
-                        y: player.y - 15,
-                        width: 5,
-                        height: 20,
-                        color: "#FFFF00", // Jasná žltá pre dobrú viditeľnosť
-                        speed: 8
-                    });
+                const now = Date.now();
+                if (now - lastShot > 250) { // Limit streľby 250ms
+                    shoot();
+                    lastShot = now;
                 }
             }
+        }
+
+        function spawnEnemy() {
+            if (isGameOver) return;
+            const r = 18;
+            enemies.push({
+                x: Math.random() * (canvas.width - r * 2) + r,
+                y: -r,
+                r: r,
+                speed: 1.5 + Math.random() * 2
+            });
+            setTimeout(spawnEnemy, 1200 - Math.min(score * 5, 800)); // Hra sa zrýchľuje
+        }
+
+        function update() {
+            if (isGameOver) return;
+
+            handleInput();
 
             // Pohyb nábojov
-            bullets.forEach((bullet, bIndex) => {
-                bullet.y -= bullet.speed;
-                if (bullet.y + bullet.height < 0) bullets.splice(bIndex, 1);
+            bullets.forEach((b, bi) => {
+                b.y -= 7;
+                if (b.y < 0) bullets.splice(bi, 1);
             });
 
             // Pohyb nepriateľov
-            enemies.forEach((enemy, eIndex) => {
-                enemy.y += enemy.speed;
+            enemies.forEach((en, ei) => {
+                en.y += en.speed;
 
-                // Kontrola kolízie (Náboj vs Nepriateľ)
-                // Používame zjednodušenú "bounding box" kolíziu pre kruhy (pre tento typ hry stačí)
-                bullets.forEach((bullet, bIndex) => {
-                    if (
-                        bullet.x < enemy.x + enemy.radius &&
-                        bullet.x + bullet.width > enemy.x - enemy.radius &&
-                        bullet.y < enemy.y + enemy.radius &&
-                        bullet.y + bullet.height > enemy.y - enemy.radius
-                    ) {
-                        // Zásah!
-                        enemies.splice(eIndex, 1);
-                        bullets.splice(bIndex, 1);
+                // Detekcia zásahu
+                bullets.forEach((b, bi) => {
+                    let dx = b.x - en.x;
+                    let dy = b.y - en.y;
+                    let dist = Math.sqrt(dx*dx + dy*dy);
+                    if (dist < en.r) {
+                        enemies.splice(ei, 1);
+                        bullets.splice(bi, 1);
                         score++;
-                        scoreElement.innerText = score;
+                        ammo += 2; // Odmena za zásah
+                        updateUI();
                     }
                 });
 
-                // Kontrola či nepriateľ ušiel (prešiel spodkom)
-                if (enemy.y - enemy.radius > canvas.height) {
-                    enemies.splice(eIndex, 1);
-                    escapedCount++;
-                    escapedElement.innerText = escapedCount;
+                // Útek
+                if (en.y > canvas.height) {
+                    enemies.splice(ei, 1);
+                    escaped++;
+                    updateUI();
+                    if (escaped > 20) endGame();
                 }
             });
         }
 
-        function draw() {
-            // Vyčistenie plochy
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // --- Kreslenie Hráča a Zbrane ---
-            // Telo hráča
-            ctx.fillStyle = player.color;
-            ctx.fillRect(player.x, player.y, player.width, player.height);
-            // Zbraň (sivý obdĺžnik trčiaci hore)
-            ctx.fillStyle = "#888";
-            ctx.fillRect(player.x + player.width / 2 - 5, player.y - 15, 10, 15);
-
-
-            // --- Kreslenie Nábojov ---
-            ctx.fillStyle = "yellow";
-            bullets.forEach(bullet => {
-                // Pridáme trocha žiary nábojom
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = "yellow";
-                ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
-                ctx.shadowBlur = 0; // Reset žiary
-            });
-
-            // --- Kreslenie Nepriateľov (Kukláčov) ---
-            enemies.forEach(enemy => {
-                // 1. Hlavný kruh (hlava v kukle)
-                ctx.beginPath();
-                ctx.arc(enemy.x, enemy.y, enemy.radius, 0, Math.PI * 2);
-                ctx.fillStyle = enemy.color;
-                ctx.fill();
-                ctx.closePath();
-
-                // 2. Otvory pre oči (aby to vyzeralo ako kukla)
-                ctx.fillStyle = "#FFDBAC"; // Farba kože
-                // Ľavé oko
-                ctx.beginPath();
-                ctx.ellipse(enemy.x - 7, enemy.y - 2, 5, 3, 0, 0, Math.PI * 2);
-                ctx.fill();
-                // Pravé oko
-                ctx.beginPath();
-                ctx.ellipse(enemy.x + 7, enemy.y - 2, 5, 3, 0, 0, Math.PI * 2);
-                ctx.fill();
-            });
-
-            requestAnimationFrame(() => {
-                update();
-                draw();
-            });
+        function endGame() {
+            isGameOver = true;
+            gameOverScreen.style.display = "block";
+            finalScoreEl.innerText = "Zlikvidoval si " + score + " kukláčov.";
         }
 
-        // Spustenie hry
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Hráč a zbraň
+            ctx.fillStyle = "#3366FF";
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+            ctx.fillStyle = "#888";
+            ctx.fillRect(player.x + 15, player.y - 10, 10, 10);
+
+            // Náboje
+            ctx.fillStyle = "yellow";
+            bullets.forEach(b => ctx.fillRect(b.x, b.y, b.w, b.h));
+
+            // Kukláči
+            enemies.forEach(en => {
+                // Hlava
+                ctx.beginPath();
+                ctx.arc(en.x, en.y, en.r, 0, Math.PI * 2);
+                ctx.fillStyle = "#333";
+                ctx.fill();
+                // Oči v kukle
+                ctx.fillStyle = "white";
+                ctx.beginPath();
+                ctx.arc(en.x - 6, en.y - 2, 3, 0, Math.PI * 2);
+                ctx.arc(en.x + 6, en.y - 2, 3, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            update();
+            requestAnimationFrame(draw);
+        }
+
+        resetGame();
+        spawnEnemy();
         draw();
     </script>
 </body>
