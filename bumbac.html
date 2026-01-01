@@ -2,105 +2,108 @@
 <html lang="sk">
 <head>
     <meta charset="UTF-8">
-    <title>CS2 Arena 1v1 - Full Auto</title>
+    <title>CS 1v1 Arena - Knife & AK47</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Arial', sans-serif; background: #111; }
         #crosshair {
-            position: absolute; top: 50%; left: 50%; width: 22px; height: 22px;
+            position: absolute; top: 50%; left: 50%; width: 20px; height: 20px;
             transform: translate(-50%, -50%); pointer-events: none; z-index: 10;
         }
-        #crosshair:before { content: ''; position: absolute; top: 10px; left: 0; width: 22px; height: 2px; background: #0f0; }
-        #crosshair:after { content: ''; position: absolute; top: 0; left: 10px; width: 2px; height: 22px; background: #0f0; }
+        #crosshair:before { content: ''; position: absolute; top: 9px; left: 0; width: 20px; height: 2px; background: #0f0; }
+        #crosshair:after { content: ''; position: absolute; top: 0; left: 9px; width: 2px; height: 20px; background: #0f0; }
         
         #hud {
             position: absolute; bottom: 30px; width: 100%; display: flex;
-            justify-content: space-around; color: #fff; font-size: 30px;
+            justify-content: space-around; color: #fff; font-size: 28px;
             font-weight: bold; text-shadow: 2px 2px #000; pointer-events: none;
         }
-        #reload-msg {
-            position: absolute; top: 60%; left: 50%; transform: translate(-50%, -50%);
-            color: #ff0; font-size: 24px; display: none; text-shadow: 2px 2px #000;
-        }
+        #weapon-info { position: absolute; bottom: 80px; right: 50px; color: #fb0; font-size: 20px; }
+        
         #menu {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: rgba(0,0,0,0.9); color: white; padding: 50px;
+            background: rgba(0,0,0,0.9); color: white; padding: 40px;
             text-align: center; border: 2px solid #de9b35; z-index: 100;
         }
-        button { background: #de9b35; border: none; padding: 15px 40px; font-size: 20px; font-weight: bold; cursor: pointer; color: #000; }
+        .btn { background: #de9b35; border: none; padding: 10px 25px; font-size: 18px; font-weight: bold; cursor: pointer; margin: 5px; color: #000; }
+        .btn:hover { background: #fff; }
     </style>
 </head>
 <body>
 
     <div id="menu">
-        <h1 style="color: #de9b35;">ARENA 1v1 - V2</h1>
-        <p>AUTOMATICKÁ STREĽBA | LEPŠÍ BOT</p>
-        <button id="startBtn">ŠTARTOVAŤ</button>
+        <h1 style="color: #de9b35;">VYBER OBTIAŽNOSŤ BOTA</h1>
+        <button class="btn" onclick="startGame(0.01)">EASY (Slabý Aim)</button>
+        <button class="btn" onclick="startGame(0.03)">MEDIUM (CS Hráč)</button>
+        <button class="btn" onclick="startGame(0.06)">HARD (Aimbot)</button>
+        <p style="font-size: 14px; color: #ccc;">1 - AK47 | 2 - NÔŽ | R - Reload</p>
     </div>
 
-    <div id="reload-msg">VYSTRIEĽANÉ - STLAČ 'R'</div>
     <div id="crosshair"></div>
+    <div id="weapon-info">ZBRAŇ: <span id="curWeapon">AK-47</span></div>
     
     <div id="hud">
         <div>HP: <span id="hp">100</span></div>
-        <div>AK-47: <span id="ammo">30</span>/90</div>
+        <div>AMMO: <span id="ammo">30</span>/90</div>
         <div>ENEMY: <span id="botHp">100</span></div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
 
     <script>
-        let scene, camera, renderer, ak47, bot, playerGroup;
+        let scene, camera, renderer, ak47, knife, bot, playerGroup;
         let ammo = 30, playerHp = 100, botHp = 100;
         let keys = {}, gameStarted = false, isReloading = false;
-        let isShooting = false, lastShotTime = 0;
+        let isShooting = false, lastShotTime = 0, currentWeapon = 'ak47';
+        let botAimChance = 0.02; 
         let obstacles = [], bullets = [];
         let pitch = 0, yaw = 0;
 
-        function createHuman(color, hasGun = false) {
+        function createHuman(color) {
             const group = new THREE.Group();
             const mat = new THREE.MeshPhongMaterial({color: color});
             const skinMat = new THREE.MeshPhongMaterial({color: 0xffdbac});
 
             const torso = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.8, 0.3), mat);
-            torso.position.y = 1.1;
+            torso.position.y = 1.1; torso.name = "body";
             group.add(torso);
 
             const head = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.35), skinMat);
-            head.position.y = 1.7;
+            head.position.y = 1.7; head.name = "head";
             group.add(head);
 
+            // Nohy a ruky
             const legGeo = new THREE.BoxGeometry(0.25, 0.7, 0.25);
-            const legL = new THREE.Mesh(legGeo, mat); legL.position.set(-0.18, 0.35, 0);
-            const legR = new THREE.Mesh(legGeo, mat); legR.position.set(0.18, 0.35, 0);
-            group.add(legL, legR);
+            const l1 = new THREE.Mesh(legGeo, mat); l1.position.set(-0.18, 0.35, 0);
+            const l2 = new THREE.Mesh(legGeo, mat); l2.position.set(0.18, 0.35, 0);
+            group.add(l1, l2);
 
-            const armGeo = new THREE.BoxGeometry(0.2, 0.7, 0.2);
-            const armL = new THREE.Mesh(armGeo, mat); armL.position.set(-0.45, 1.1, 0);
-            const armR = new THREE.Mesh(armGeo, mat); armR.position.set(0.45, 1.1, 0);
-            group.add(armL, armR);
+            // Botova zbraň
+            const bGun = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.6), new THREE.MeshPhongMaterial({color: 0x222222}));
+            bGun.position.set(0.4, 1.1, -0.3);
+            group.add(bGun);
 
-            if(hasGun) {
-                const bGun = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.7), new THREE.MeshPhongMaterial({color: 0x222222}));
-                bGun.position.set(0.4, 1.0, -0.3);
-                group.add(bGun);
-            }
             return group;
         }
 
         function createAK47() {
             const group = new THREE.Group();
-            const ironMat = new THREE.MeshPhongMaterial({color: 0x222222});
-            const woodMat = new THREE.MeshPhongMaterial({color: 0x5e2f11});
+            const iron = new THREE.MeshPhongMaterial({color: 0x222222});
+            const wood = new THREE.MeshPhongMaterial({color: 0x5e2f11});
+            const b = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.5), iron);
+            const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.55), iron);
+            bar.rotation.x = Math.PI/2; bar.position.z = -0.45;
+            const st = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.15, 0.35), wood);
+            st.position.set(0, -0.05, 0.4);
+            group.add(b, bar, st);
+            return group;
+        }
 
-            const body = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.5), ironMat);
-            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.55), ironMat);
-            barrel.rotation.x = Math.PI / 2; barrel.position.z = -0.45;
-            const stock = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.15, 0.35), woodMat);
-            stock.position.set(0, -0.05, 0.4);
-            const mag = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.25, 0.1), ironMat);
-            mag.position.set(0, -0.2, -0.1); mag.rotation.x = 0.4;
-
-            group.add(body, barrel, stock, mag);
+        function createKnife() {
+            const group = new THREE.Group();
+            const blade = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.05, 0.3), new THREE.MeshPhongMaterial({color: 0xaaaaaa}));
+            const handle = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.06, 0.15), new THREE.MeshPhongMaterial({color: 0x111111}));
+            handle.position.z = 0.2;
+            group.add(blade, handle);
             return group;
         }
 
@@ -116,45 +119,31 @@
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            // Oprava bugovania podlahy (depth buffer)
-            renderer.shadowMap.enabled = true;
             document.body.appendChild(renderer.domElement);
 
-            const sun = new THREE.DirectionalLight(0xffffff, 1.5);
-            sun.position.set(5, 15, 5);
-            scene.add(sun, new THREE.AmbientLight(0xffffff, 0.4));
+            scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+            const sun = new THREE.DirectionalLight(0xffffff, 1);
+            sun.position.set(5, 10, 5);
+            scene.add(sun);
 
-            const arenaSize = 40;
-            const floor = new THREE.Mesh(new THREE.PlaneGeometry(arenaSize, arenaSize), new THREE.MeshPhongMaterial({color: 0x444444}));
+            // Podlaha a Steny (Kocka)
+            const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshPhongMaterial({color: 0x333333}));
             floor.rotation.x = -Math.PI / 2;
-            floor.position.y = -0.01; // Jemne pod nulu aby sa neprekrývala
             scene.add(floor);
 
-            const wallMat = new THREE.MeshPhongMaterial({color: 0x333333, side: THREE.BackSide});
-            const walls = new THREE.Mesh(new THREE.BoxGeometry(arenaSize, 10, arenaSize), wallMat);
-            walls.position.y = 5;
-            scene.add(walls);
+            ak47 = createAK47(); camera.add(ak47); ak47.position.set(0.4, -0.4, -0.7);
+            knife = createKnife(); camera.add(knife); knife.position.set(0.4, -0.4, -0.5);
+            knife.visible = false;
 
-            const boxMat = new THREE.MeshPhongMaterial({color: 0x8b4513});
-            for(let i=0; i<10; i++) {
-                const box = new THREE.Mesh(new THREE.BoxGeometry(2.5, 2.5, 2.5), boxMat);
-                box.position.set(Math.random()*30-15, 1.25, Math.random()*30-15);
-                scene.add(box);
-                obstacles.push(box);
-            }
-
-            ak47 = createAK47();
-            camera.add(ak47);
-            ak47.position.set(0.4, -0.4, -0.7);
-
-            bot = createHuman(0x111111, true); // Čierny kukláč so zbraňou
+            bot = createHuman(0x222222);
             bot.position.set(0, 0, -10);
-            bot.moveDir = 1;
             scene.add(bot);
 
             window.addEventListener('keydown', e => {
                 keys[e.code] = true;
-                if(e.code === 'KeyR' && ammo < 30 && !isReloading) reload();
+                if(e.code === 'Digit1') switchWeapon('ak47');
+                if(e.code === 'Digit2') switchWeapon('knife');
+                if(e.code === 'KeyR' && ammo < 30 && !isReloading && currentWeapon === 'ak47') reload();
             });
             window.addEventListener('keyup', e => keys[e.code] = false);
 
@@ -170,102 +159,92 @@
 
             window.addEventListener('mousedown', () => isShooting = true);
             window.addEventListener('mouseup', () => isShooting = false);
-            
             animate();
+        }
+
+        function switchWeapon(type) {
+            currentWeapon = type;
+            ak47.visible = (type === 'ak47');
+            knife.visible = (type === 'knife');
+            document.getElementById('curWeapon').innerText = type.toUpperCase();
         }
 
         function reload() {
             isReloading = true;
-            document.getElementById('reload-msg').style.display = 'none';
-            ak47.position.y -= 0.2;
-            setTimeout(() => {
-                ammo = 30;
-                document.getElementById('ammo').innerText = ammo;
-                ak47.position.y += 0.2;
-                isReloading = false;
-            }, 1200);
+            ak47.rotation.x = 0.5;
+            setTimeout(() => { ammo = 30; document.getElementById('ammo').innerText = ammo; ak47.rotation.x = 0; isReloading = false; }, 1000);
         }
 
         function shoot() {
             const now = Date.now();
-            if(now - lastShotTime < 100) return; // Kadencia streľby
-            if(!gameStarted || ammo <= 0 || isReloading) return;
-            
-            lastShotTime = now;
-            ammo--;
-            document.getElementById('ammo').innerText = ammo;
-            if(ammo === 0) document.getElementById('reload-msg').style.display = 'block';
+            if(currentWeapon === 'ak47') {
+                if(now - lastShotTime < 110 || ammo <= 0 || isReloading) return;
+                lastShotTime = now; ammo--;
+                document.getElementById('ammo').innerText = ammo;
+                
+                // Tracer
+                const tr = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.7), new THREE.MeshBasicMaterial({color: 0xffff00}));
+                tr.position.copy(playerGroup.position);
+                tr.rotation.copy(camera.rotation);
+                tr.rotation.y += playerGroup.rotation.y;
+                const dir = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion).applyQuaternion(playerGroup.quaternion);
+                tr.velocity = dir.multiplyScalar(2);
+                bullets.push(tr); scene.add(tr);
 
-            ak47.position.z += 0.04; // Spätný ráz
+                checkHit(25, 50); // Body 25 (4 hity), Head 50 (2 hity)
+            } else {
+                if(now - lastShotTime < 400) return;
+                lastShotTime = now;
+                knife.position.z -= 0.2; setTimeout(()=>knife.position.z += 0.2, 100);
+                if(playerGroup.position.distanceTo(bot.position) < 3) checkHit(50, 100);
+            }
+        }
 
-            const tracer = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.6), new THREE.MeshBasicMaterial({color: 0xffff00}));
-            tracer.position.copy(playerGroup.position);
-            tracer.position.y -= 0.1;
-            tracer.rotation.copy(camera.rotation);
-            tracer.rotation.y += playerGroup.rotation.y;
-
-            const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).applyQuaternion(playerGroup.quaternion);
-            tracer.velocity = dir.multiplyScalar(1.8);
-            bullets.push(tracer);
-            scene.add(tracer);
-
+        function checkHit(bodyDmg, headDmg) {
             const ray = new THREE.Raycaster();
             ray.setFromCamera({x:0, y:0}, camera);
             const hits = ray.intersectObjects(bot.children);
             if(hits.length > 0) {
-                botHp -= 10;
+                const hitName = hits[0].object.name;
+                botHp -= (hitName === "head") ? headDmg : bodyDmg;
                 document.getElementById('botHp').innerText = botHp;
-                if(botHp <= 0) { alert("VÍŤAZ!"); location.reload(); }
+                if(botHp <= 0) { alert("BOT ELIMINOVANÝ!"); location.reload(); }
             }
         }
 
         function animate() {
             requestAnimationFrame(animate);
             if(!gameStarted) return;
-
             if(isShooting) shoot();
 
-            const oldPos = playerGroup.position.clone();
             const move = new THREE.Vector3();
-            if(keys['KeyW']) move.z -= 1;
-            if(keys['KeyS']) move.z += 1;
-            if(keys['KeyA']) move.x -= 1;
-            if(keys['KeyD']) move.x += 1;
-
+            if(keys['KeyW']) move.z -= 1; if(keys['KeyS']) move.z += 1;
+            if(keys['KeyA']) move.x -= 1; if(keys['KeyD']) move.x += 1;
             if(move.length() > 0) {
                 move.normalize().applyQuaternion(playerGroup.quaternion);
                 playerGroup.position.addScaledVector(move, 0.15);
             }
 
-            // Kolízie
-            const limit = 19;
-            if(Math.abs(playerGroup.position.x) > limit || Math.abs(playerGroup.position.z) > limit) playerGroup.position.copy(oldPos);
-            obstacles.forEach(box => {
-                if(playerGroup.position.distanceTo(new THREE.Vector3(box.position.x, 1.7, box.position.z)) < 2) playerGroup.position.copy(oldPos);
-            });
+            // Hranice mapy
+            playerGroup.position.x = Math.max(-19, Math.min(19, playerGroup.position.x));
+            playerGroup.position.z = Math.max(-19, Math.min(19, playerGroup.position.z));
 
-            ak47.position.z = THREE.MathUtils.lerp(ak47.position.z, -0.7, 0.2);
+            bullets.forEach((b, i) => { b.position.add(b.velocity); if(b.position.length() > 50) { scene.remove(b); bullets.splice(i,1); }});
 
-            bullets.forEach((b, i) => {
-                b.position.add(b.velocity);
-                if(b.position.distanceTo(playerGroup.position) > 60) { scene.remove(b); bullets.splice(i, 1); }
-            });
-
-            // Bot - Pohyb a inteligencia
-            bot.position.x += 0.08 * bot.moveDir;
-            if(Math.abs(bot.position.x) > 12) bot.moveDir *= -1;
+            // Bot AI
             bot.lookAt(playerGroup.position.x, 0, playerGroup.position.z);
-
-            if(Math.random() < 0.02) {
-                playerHp -= 1;
+            if(Math.random() < botAimChance) {
+                let dmg = (Math.random() > 0.8) ? 50 : 25; // Bot dáva headshot s 20% šancou
+                playerHp -= dmg;
                 document.getElementById('hp').innerText = playerHp;
-                if(playerHp <= 0) { alert("PREHRA!"); location.reload(); }
+                if(playerHp <= 0) { alert("BOL SI ZABITÝ!"); location.reload(); }
             }
 
             renderer.render(scene, camera);
         }
 
-        document.getElementById('startBtn').onclick = () => {
+        window.startGame = (chance) => {
+            botAimChance = chance;
             gameStarted = true;
             document.getElementById('menu').style.display = 'none';
             init();
