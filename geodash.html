@@ -3,38 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mini Geometry Dash</title>
+    <title>GeoDash Pro</title>
     <style>
-        body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; background: #222; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        canvas { display: none; background: #333; border-bottom: 5px solid #555; }
+        :root { --primary: #00f2ff; }
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0a0a0a; color: white; }
         
-        #menu { text-align: center; background: #444; padding: 30px; border-radius: 15px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
-        .faces { display: flex; gap: 20px; justify-content: center; margin: 20px 0; }
-        .face-option { width: 60px; height: 60px; border: 3px solid transparent; cursor: pointer; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: #666; font-size: 30px; }
-        .face-option.selected { border-color: #00ff00; background: #888; }
+        /* Menu Styling */
+        #ui-layer { position: absolute; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); z-index: 10; transition: 0.5s; }
+        .hidden { display: none !important; }
         
-        .controls { margin-top: 20px; }
-        button { padding: 10px 25px; font-size: 18px; cursor: pointer; background: #2ecc71; border: none; color: white; border-radius: 5px; font-weight: bold; }
-        button:hover { background: #27ae60; }
-        input[type="color"] { cursor: pointer; border: none; width: 50px; height: 50px; background: none; }
+        h1 { font-size: 80px; margin: 0; color: var(--primary); text-shadow: 0 0 20px var(--primary); letter-spacing: 5px; font-style: italic; }
+        
+        .panel { background: rgba(255,255,255,0.1); padding: 20px; border-radius: 15px; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2); text-align: center; width: 400px; }
+        
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+        button { padding: 12px; cursor: pointer; background: var(--primary); border: none; color: black; border-radius: 5px; font-weight: bold; transition: 0.3s; text-transform: uppercase; }
+        button:hover { transform: scale(1.05); box-shadow: 0 0 15px var(--primary); }
+        button.level-btn { background: #555; color: white; }
+        button.level-btn:hover { background: #777; }
+
+        .custom-section { display: flex; justify-content: space-around; align-items: center; margin: 15px 0; }
+        .face-opt { font-size: 30px; cursor: pointer; opacity: 0.5; transition: 0.3s; }
+        .face-opt.active { opacity: 1; transform: scale(1.2); text-shadow: 0 0 10px white; }
+        
+        input[type="color"] { border: none; width: 40px; height: 40px; background: none; cursor: pointer; }
+
+        canvas { display: block; filter: drop-shadow(0 0 5px rgba(0,242,255,0.2)); }
     </style>
 </head>
 <body>
 
-    <div id="menu">
-        <h1>Mini Geometry Dash</h1>
-        <p>Vyber si svojho smajlíka:</p>
-        <div class="faces">
-            <div class="face-option selected" onclick="selectFace('happy', 0)">😊</div>
-            <div class="face-option" onclick="selectFace('neutral', 1)">😐</div>
-            <div class="face-option" onclick="selectFace('sad', 2)">☹️</div>
-        </div>
+    <div id="ui-layer">
+        <h1>GEODASH</h1>
         
-        <p>Vyber si farbu kocky:</p>
-        <input type="color" id="playerColor" value="#00ff00">
-        
-        <div class="controls">
-            <button onclick="startGame()">HRAŤ</button>
+        <div class="panel" id="main-menu">
+            <div class="custom-section">
+                <div class="face-opt active" onclick="setFace('happy', 0)">😊</div>
+                <div class="face-opt" onclick="setFace('neutral', 1)">😐</div>
+                <div class="face-opt" onclick="setFace('sad', 2)">☹️</div>
+                <input type="color" id="pColor" value="#00f2ff" onchange="updateColors()">
+            </div>
+
+            <div class="btn-grid">
+                <button onclick="startGame('level1')" class="level-btn">Level 1</button>
+                <button onclick="startGame('level2')" class="level-btn">Level 2</button>
+                <button onclick="startGame('level3')" class="level-btn">Level 3</button>
+                <button onclick="startGame('endless')" style="grid-column: span 2;">Endless Run</button>
+            </div>
         </div>
     </div>
 
@@ -43,195 +58,254 @@
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const menu = document.getElementById('menu');
-        
-        // Nastavenia hry
-        canvas.width = 800;
-        canvas.height = 400;
-        
+        const uiLayer = document.getElementById('ui-layer');
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // --- HERNÉ PREMENNÉ ---
         let gameState = 'menu';
+        let currentLevel = null;
         let score = 0;
-        let selectedFace = 'happy';
-        let playerColor = '#00ff00';
+        let distance = 0;
+        let speed = 7;
+        let playerFace = 'happy';
+        let pColor = "#00f2ff";
         
+        let bgColor = { r: 20, g: 20, b: 35 };
+        let targetBg = { r: 20, g: 20, b: 35 };
+
         const gravity = 0.8;
-        const jumpPower = -12;
-        const groundY = 350;
+        const jumpPower = -14;
+        const groundY = canvas.height * 0.7;
 
         let player = {
-            x: 100,
-            y: groundY - 40,
-            size: 40,
-            vy: 0,
-            rotation: 0,
-            targetRotation: 0,
-            isJumping: false
+            x: 150, y: groundY - 50, size: 50,
+            vy: 0, rotation: 0, isJumping: false,
+            targetRot: 0
         };
 
         let obstacles = [];
-        let frameCount = 0;
+        let particles = [];
 
-        function selectFace(face, index) {
-            selectedFace = face;
-            const options = document.querySelectorAll('.face-option');
-            options.forEach(opt => opt.classList.remove('selected'));
-            options[index].classList.add('selected');
+        // Definícia levelov (X súradnice prekážok)
+        const levels = {
+            level1: { obstacles: [800, 1200, 1500, 1900, 2000, 2500, 2800, 3100, 3150, 3200], color: [0, 150, 255], end: 4000 },
+            level2: { obstacles: [800, 1100, 1150, 1600, 2000, 2100, 2500, 2600, 2700, 3000, 3500], color: [46, 204, 113], end: 4500 },
+            level3: { obstacles: [800, 900, 1000, 1500, 1800, 1900, 2400, 2500, 2600, 3000, 3100, 3500, 3600], color: [231, 76, 60], end: 5000 }
+        };
+
+        // --- LOGIKA MENU ---
+        function setFace(face, idx) {
+            playerFace = face;
+            document.querySelectorAll('.face-opt').forEach((el, i) => {
+                el.classList.toggle('active', i === idx);
+            });
         }
 
-        function startGame() {
-            playerColor = document.getElementById('playerColor').value;
-            menu.style.display = 'none';
-            canvas.style.display = 'block';
-            resetGame();
+        function updateColors() {
+            pColor = document.getElementById('pColor').value;
+            document.documentElement.style.setProperty('--primary', pColor);
+        }
+
+        function startGame(mode) {
             gameState = 'playing';
-            requestAnimationFrame(gameLoop);
+            currentLevel = mode;
+            uiLayer.classList.add('hidden');
+            resetGame();
         }
 
         function resetGame() {
             score = 0;
-            obstacles = [];
-            player.y = groundY - 40;
+            distance = 0;
+            speed = 7;
+            player.y = groundY - 50;
             player.vy = 0;
             player.rotation = 0;
-            player.targetRotation = 0;
-            player.isJumping = false;
+            player.targetRot = 0;
+            obstacles = [];
+            
+            if(currentLevel !== 'endless') {
+                levels[currentLevel].obstacles.forEach(ox => {
+                    obstacles.push({ x: ox, type: 'spike' });
+                });
+            }
         }
 
-        function drawPlayer() {
-            ctx.save();
-            ctx.translate(player.x + player.size / 2, player.y + player.size / 2);
-            ctx.rotate((player.rotation * Math.PI) / 180);
-            
-            // Telo kocky
-            ctx.fillStyle = playerColor;
-            ctx.fillRect(-player.size / 2, -player.size / 2, player.size, player.size);
-            ctx.strokeStyle = "white";
-            ctx.lineWidth = 2;
-            ctx.strokeRect(-player.size / 2, -player.size / 2, player.size, player.size);
+        // --- GRAFIKA ---
+        function lerpColor() {
+            bgColor.r += (targetBg.r - bgColor.r) * 0.01;
+            bgColor.g += (targetBg.g - bgColor.g) * 0.01;
+            bgColor.b += (targetBg.b - bgColor.b) * 0.01;
+        }
 
-            // Kreslenie smajlíka
-            ctx.strokeStyle = "black";
-            ctx.lineWidth = 2;
-            ctx.beginPath();
+        function drawCube(x, y, size, rot, color, face) {
+            ctx.save();
+            ctx.translate(x + size/2, y + size/2);
+            ctx.rotate(rot * Math.PI / 180);
             
-            if (selectedFace === 'happy') {
-                // Oči
-                ctx.strokeRect(-10, -12, 2, 4);
-                ctx.strokeRect(8, -12, 2, 4);
-                // Úsmev
-                ctx.arc(0, 5, 10, 0, Math.PI, false);
-            } else if (selectedFace === 'neutral') {
-                ctx.strokeRect(-10, -12, 2, 4);
-                ctx.strokeRect(8, -12, 2, 4);
-                // Čiarka
-                ctx.moveTo(-10, 10);
-                ctx.lineTo(10, 10);
+            // Telo
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = color;
+            ctx.fillStyle = color;
+            ctx.fillRect(-size/2, -size/2, size, size);
+            
+            // Detaily (vnútorný štvorec)
+            ctx.strokeStyle = "rgba(255,255,255,0.5)";
+            ctx.lineWidth = 3;
+            ctx.strokeRect(-size/2 + 5, -size/2 + 5, size - 10, size - 10);
+
+            // Smajlík
+            ctx.strokeStyle = "black";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            if(face === 'happy') {
+                ctx.strokeRect(-12, -15, 2, 6); ctx.strokeRect(10, -15, 2, 6);
+                ctx.arc(0, 5, 12, 0.2, Math.PI - 0.2, false);
+            } else if(face === 'neutral') {
+                ctx.strokeRect(-12, -15, 2, 6); ctx.strokeRect(10, -15, 2, 6);
+                ctx.moveTo(-12, 12); ctx.lineTo(12, 12);
             } else {
-                ctx.strokeRect(-10, -12, 2, 4);
-                ctx.strokeRect(8, -12, 2, 4);
-                // Smutný úsmev
-                ctx.arc(0, 15, 8, 0, Math.PI, true);
+                ctx.strokeRect(-12, -15, 2, 6); ctx.strokeRect(10, -15, 2, 6);
+                ctx.arc(0, 20, 10, 0, Math.PI, true);
             }
             ctx.stroke();
             ctx.restore();
         }
 
-        function spawnObstacle() {
-            if (frameCount % 100 === 0) {
-                obstacles.push({
-                    x: canvas.width,
-                    y: groundY,
-                    size: 40
-                });
+        function drawSpike(x, y, size) {
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = "#ff2222";
+            ctx.fillStyle = "#333";
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + size, y);
+            ctx.lineTo(x + size/2, y - size);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = "#ff4444";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        }
+
+        // --- HLAVNÝ CYKLUS ---
+        function update() {
+            if(gameState === 'playing') {
+                distance += speed;
+                player.vy += gravity;
+                player.y += player.vy;
+
+                // Rotácia
+                if(player.isJumping) {
+                    player.rotation += 6; 
+                }
+
+                if(player.y > groundY - player.size) {
+                    player.y = groundY - player.size;
+                    player.vy = 0;
+                    player.isJumping = false;
+                    player.rotation = Math.round(player.rotation / 90) * 90;
+                }
+
+                // Endless generovanie
+                if(currentLevel === 'endless' && Math.random() < 0.02 && (obstacles.length === 0 || obstacles[obstacles.length-1].x < canvas.width - 300)) {
+                    obstacles.push({ x: canvas.width, type: 'spike' });
+                    speed += 0.01;
+                }
+
+                // Farba pozadia (Level progress)
+                if(currentLevel !== 'endless') {
+                    let progress = distance / levels[currentLevel].end;
+                    targetBg.r = levels[currentLevel].color[0] * progress + 20;
+                    targetBg.g = levels[currentLevel].color[1] * progress + 20;
+                    targetBg.b = (255 - levels[currentLevel].color[2] * progress);
+                    
+                    if(distance > levels[currentLevel].end) {
+                        alert("Level Dokončený!");
+                        location.reload();
+                    }
+                } else {
+                    targetBg.r = Math.sin(distance * 0.001) * 50 + 50;
+                }
+
+                lerpColor();
+            } else {
+                // Menu pozadie animácia
+                distance += 2;
+                lerpColor();
             }
         }
 
-        function drawObstacles() {
-            ctx.fillStyle = "#ff4444";
-            obstacles.forEach((obs, index) => {
-                obs.x -= 6; // Rýchlosť pohybu
-                
+        function draw() {
+            ctx.fillStyle = `rgb(${bgColor.r}, ${bgColor.g}, ${bgColor.b})`;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Zem
+            ctx.fillStyle = "#111";
+            ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
+            ctx.strokeStyle = pColor;
+            ctx.lineWidth = 4;
+            ctx.strokeRect(-10, groundY, canvas.width + 20, 5);
+
+            // Mriežka na zemi pre pocit pohybu
+            ctx.strokeStyle = "rgba(255,255,255,0.1)";
+            ctx.lineWidth = 1;
+            for(let i = 0; i < canvas.width; i += 50) {
+                let offset = (distance % 50);
                 ctx.beginPath();
-                ctx.moveTo(obs.x, obs.y);
-                ctx.lineTo(obs.x + obs.size, obs.y);
-                ctx.lineTo(obs.x + obs.size / 2, obs.y - obs.size);
-                ctx.closePath();
-                ctx.fill();
+                ctx.moveTo(i - offset, groundY);
+                ctx.lineTo(i - offset, canvas.height);
+                ctx.stroke();
+            }
 
-                // Kolízia
-                if (
-                    player.x < obs.x + obs.size - 10 &&
-                    player.x + player.size > obs.x + 10 &&
-                    player.y + player.size > obs.y - obs.size + 10
-                ) {
-                    alert("Koniec hry! Tvoje skóre: " + score);
-                    location.reload();
-                }
+            if(gameState === 'playing') {
+                drawCube(player.x, player.y, player.size, player.rotation, pColor, playerFace);
 
-                if (obs.x + obs.size < 0) {
-                    obstacles.splice(index, 1);
-                    score++;
-                }
+                obstacles.forEach((obs, idx) => {
+                    if(currentLevel === 'endless') obs.x -= speed;
+                    else obs.x = (obs.x_orig || (obs.x_orig = obs.x)) - (distance - 0); // Fixná pozícia v leveli
+                    
+                    let screenX = (currentLevel === 'endless') ? obs.x : obs.x - distance + 400;
+                    
+                    drawSpike(screenX, groundY, 50);
+
+                    // Kolízia
+                    let px = player.x + 10;
+                    let pw = player.size - 20;
+                    if(screenX + 40 > px && screenX + 10 < px + pw && player.y + player.size > groundY - 45) {
+                        gameState = 'menu';
+                        uiLayer.classList.remove('hidden');
+                        alert("BOOM! Skús to znova.");
+                        resetGame();
+                    }
+                });
+            } else {
+                // Menu animovaná kocka
+                let menuCubeY = groundY - 50 + Math.sin(distance * 0.05) * 20;
+                drawCube(canvas.width/2 - 25, menuCubeY, 50, distance, pColor, playerFace);
+            }
+
+            requestAnimationFrame(() => {
+                update();
+                draw();
             });
         }
 
-        function update() {
-            // Gravitácia a skok
-            player.vy += gravity;
-            player.y += player.vy;
-
-            if (player.y > groundY - player.size) {
-                player.y = groundY - player.size;
-                player.vy = 0;
-                player.isJumping = false;
-                // Zarovnanie rotácie po dopade
-                player.rotation = player.targetRotation;
-            }
-
-            // Animácia rotácie počas skoku
-            if (player.isJumping) {
-                player.rotation += 5; 
-            }
-
-            spawnObstacle();
-            frameCount++;
-        }
-
-        function gameLoop() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // Zem
-            ctx.fillStyle = "#555";
-            ctx.fillRect(0, groundY, canvas.width, 50);
-
-            update();
-            drawPlayer();
-            drawObstacles();
-
-            ctx.fillStyle = "white";
-            ctx.font = "20px Arial";
-            ctx.fillText("Skóre: " + score, 20, 30);
-
-            requestAnimationFrame(gameLoop);
-        }
-
-        // Ovládanie
-        window.addEventListener('keydown', (e) => {
-            if ((e.code === 'Space' || e.code === 'ArrowUp') && !player.isJumping) {
+        // --- OVLÁDANIE ---
+        const handleJump = () => {
+            if(!player.isJumping && gameState === 'playing') {
                 player.vy = jumpPower;
                 player.isJumping = true;
-                player.targetRotation += 90; // Plánované otočenie
             }
-        });
+        };
 
-        // Ovládanie dotykom/klikom pre mobil
-        window.addEventListener('mousedown', () => {
-            if (gameState === 'playing' && !player.isJumping) {
-                player.vy = jumpPower;
-                player.isJumping = true;
-                player.targetRotation += 90;
-            }
-        });
+        window.addEventListener('keydown', (e) => { if(e.code === 'Space' || e.code === 'ArrowUp') handleJump(); });
+        window.addEventListener('mousedown', handleJump);
+
+        // Spustenie animácie pozadia
+        draw();
+
     </script>
 </body>
 </html>
