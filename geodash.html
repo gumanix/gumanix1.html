@@ -3,97 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GeoDash Mobile Pro</title>
+    <title>GeoDash Long Levels</title>
     <style>
         :root { --primary: #00f2ff; }
         * { box-sizing: border-box; touch-action: none; }
         body { 
-            margin: 0; 
-            padding: 0;
-            overflow: hidden; 
-            font-family: 'Arial Black', sans-serif; 
-            background: #050505; 
-            color: white;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
+            margin: 0; padding: 0; overflow: hidden; 
+            font-family: 'Arial Black', sans-serif; background: #050505; 
+            color: white; display: flex; justify-content: center; align-items: center; height: 100vh;
         }
-        
         #game-container {
-            position: relative;
-            width: 100%;
-            max-width: 800px; /* Šírka hry */
-            aspect-ratio: 16 / 9;
-            background: #000;
-            overflow: hidden;
-            border: 3px solid #333;
-            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+            position: relative; width: 100%; max-width: 800px; aspect-ratio: 16 / 9;
+            background: #000; overflow: hidden; border: 3px solid #333;
         }
-
         canvas { width: 100%; height: 100%; display: block; }
-
-        /* UI VRSTVA */
         #ui-layer { 
-            position: absolute; 
-            inset: 0; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: center; 
-            background: rgba(0,0,0,0.8); 
-            z-index: 10; 
+            position: absolute; inset: 0; display: flex; flex-direction: column; 
+            align-items: center; justify-content: center; background: rgba(0,0,0,0.8); z-index: 10; 
         }
         .hidden { display: none !important; }
-        
         h1 { font-size: clamp(30px, 8vw, 60px); margin: 0 0 10px 0; color: var(--primary); text-shadow: 0 0 20px var(--primary); font-style: italic; }
-        
         .panel { 
-            background: rgba(255,255,255,0.05); 
-            padding: 20px; 
-            border-radius: 15px; 
-            border: 1px solid var(--primary); 
-            text-align: center; 
-            width: 80%; 
-            max-width: 400px;
+            background: rgba(255,255,255,0.05); padding: 20px; border-radius: 15px; 
+            border: 1px solid var(--primary); text-align: center; width: 80%; max-width: 400px;
         }
-        
         .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
         button { 
-            padding: 12px; 
-            cursor: pointer; 
-            background: var(--primary); 
-            border: none; 
-            color: black; 
-            border-radius: 5px; 
-            font-weight: bold; 
-            font-size: 14px;
-            text-transform: uppercase; 
+            padding: 12px; cursor: pointer; background: var(--primary); border: none; 
+            color: black; border-radius: 5px; font-weight: bold; text-transform: uppercase; 
         }
-
         #progress-bar { 
-            position: absolute; 
-            top: 10px; 
-            left: 50%; 
-            transform: translateX(-50%);
-            width: 60%; 
-            height: 8px; 
-            background: rgba(255,255,255,0.2); 
-            border-radius: 4px; 
-            display: none;
+            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+            width: 60%; height: 8px; background: rgba(255,255,255,0.2); border-radius: 4px; display: none;
         }
         #progress-fill { width: 0%; height: 100%; background: var(--primary); box-shadow: 0 0 10px var(--primary); }
-
         .victory-msg { 
-            position: absolute; 
-            top: 20%; 
-            width: 100%; 
-            text-align: center; 
-            font-size: 40px; 
-            color: #00ff00; 
-            display: none; 
-            z-index: 5;
-            text-shadow: 0 0 15px #00ff00;
+            position: absolute; top: 20%; width: 100%; text-align: center; 
+            font-size: 40px; color: #00ff00; display: none; z-index: 5; text-shadow: 0 0 15px #00ff00;
         }
     </style>
 </head>
@@ -106,8 +52,7 @@
         <div id="ui-layer">
             <h1>GEODASH</h1>
             <div class="panel">
-                <div style="margin-bottom: 10px;">FARBA KOCKY:</div>
-                <input type="color" id="pColor" value="#00f2ff" style="width:100%; height:30px; cursor:pointer;">
+                <input type="color" id="pColor" value="#00f2ff" style="width:100%; height:30px; cursor:pointer; margin-bottom:10px;">
                 <div class="btn-grid">
                     <button onclick="startGame('level1')">Level 1</button>
                     <button onclick="startGame('level2')">Level 2</button>
@@ -115,7 +60,6 @@
                     <button onclick="startGame('endless')" style="background:#ffcc00">Endless</button>
                 </div>
             </div>
-            <p style="font-size: 10px; margin-top: 10px;">SKÁČ MEDZERNÍKOM ALEBO DOTYKOM</p>
         </div>
 
         <canvas id="gameCanvas"></canvas>
@@ -129,15 +73,12 @@
         const progressBar = document.getElementById('progress-bar');
         const victoryMsg = document.getElementById('victory-msg');
 
-        // Nastavenie fixného rozlíšenia pre logiku (800x450)
-        canvas.width = 800;
-        canvas.height = 450;
+        canvas.width = 800; canvas.height = 450;
 
-        // --- HUDBA PRE KAŽDÝ LEVEL ---
         const playlist = {
             level1: new Audio('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'),
-            level2: new Audio('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3'),
-            level3: new Audio('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3'),
+            level2: new Audio('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3'),
+            level3: new Audio('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3'),
             endless: new Audio('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3')
         };
         let currentAudio = null;
@@ -145,180 +86,137 @@
         let gameState = 'menu';
         let currentLevel = null;
         let distance = 0;
-        let speed = 7;
+        let speed = 8;
         let isHoldingJump = false;
         let pColor = "#00f2ff";
         const groundY = 350;
 
-        let player = {
-            x: 100, y: groundY - 40, size: 40,
-            vy: 0, rotation: 0, isJumping: false
-        };
-
+        let player = { x: 100, y: groundY - 40, size: 40, vy: 0, rotation: 0, isJumping: false };
         let obstacles = [];
 
-        // Definícia levelov: S = Spike, B = Block
+        // Generovanie predĺžených levelov (S=Spike, B=Block, h=výška bloku, yO=yOffset pre spike)
         const levelData = {
-            level1: { // Ľahký: málo prekážok
-                end: 5000, 
-                map: [{x: 800, t:'S'}, {x: 1400, t:'B'}, {x: 2000, t:'S'}, {x: 2600, t:'B'}, {x: 2640, t:'B'}, {x: 3500, t:'S'}, {x: 4200, t:'B'}]
+            level1: {
+                end: 12000,
+                map: [
+                    {x:800, t:'S'}, {x:1400, t:'B'}, {x:1800, t:'S'}, {x:2300, t:'B'}, {x:2340, t:'B'},
+                    {x:2800, t:'S'}, {x:3300, t:'B'}, {x:3300, t:'S', yO:40}, // Spike na bloku
+                    {x:4000, t:'S'}, {x:4060, t:'S'}, {x:4600, t:'B'}, {x:5000, t:'B'}, {x:5000, t:'S', yO:40},
+                    {x:6000, t:'S'}, {x:6500, t:'B', h:80}, {x:6500, t:'S', yO:80},
+                    {x:7500, t:'S'}, {x:7600, t:'S'}, {x:8500, t:'B'}, {x:8540, t:'B'}, {x:9500, t:'S'}
+                ]
             },
-            level2: { // Stredný: viac skokov
-                end: 6000, 
-                map: [{x: 700, t:'S'}, {x: 1000, t:'S'}, {x: 1300, t:'B'}, {x: 1700, t:'B'}, {x: 1740, t:'B'}, {x: 2200, t:'S'}, {x: 2500, t:'B', h:80}, {x: 3000, t:'S'}, {x: 3050, t:'S'}]
+            level2: {
+                end: 18000,
+                map: [
+                    {x:800, t:'B'}, {x:840, t:'B'}, {x:1200, t:'S'}, {x:1500, t:'B', h:60}, {x:1500, t:'S', yO:60},
+                    {x:2000, t:'S'}, {x:2060, t:'S'}, {x:2500, t:'B'}, {x:2700, t:'B', h:80}, {x:2900, t:'B', h:120},
+                    {x:3500, t:'S'}, {x:3800, t:'B'}, {x:3800, t:'S', yO:40}, {x:4200, t:'S'}, {x:4260, t:'S'},
+                    {x:5000, t:'B', h:40}, {x:5100, t:'B', h:40}, {x:5500, t:'S'}, {x:6000, t:'B', h:100},
+                    {x:7000, t:'S'}, {x:7060, t:'S'}, {x:7120, t:'S'}, {x:8000, t:'B'}, {x:8000, t:'S', yO:40}
+                ]
             },
-            level3: { // Ťažký: bloky do výšky
-                end: 7000, 
-                map: [{x: 600, t:'S'}, {x: 900, t:'B'}, {x: 1000, t:'B', h:80}, {x: 1300, t:'S'}, {x: 1350, t:'S'}, {x: 1800, t:'B'}, {x: 1840, t:'B'}, {x: 1880, t:'B'}, {x: 2500, t:'S'}, {x: 2800, t:'B', h:100}]
+            level3: {
+                end: 25000,
+                map: [
+                    {x:600, t:'S'}, {x:900, t:'B'}, {x:900, t:'S', yO:40}, {x:1300, t:'B', h:80}, {x:1300, t:'S', yO:80},
+                    {x:1800, t:'S'}, {x:1850, t:'S'}, {x:1900, t:'S'}, {x:2400, t:'B'}, {x:2440, t:'B', h:80}, {x:2480, t:'B', h:120},
+                    {x:3200, t:'S'}, {x:3500, t:'B', h:100}, {x:3500, t:'S', yO:100}, {x:4000, t:'B'}, {x:4100, t:'S'},
+                    {x:5000, t:'B', h:60}, {x:5060, t:'B', h:60}, {x:5500, t:'S'}, {x:5560, t:'S'}, {x:6200, t:'B', h:140}
+                ]
             }
         };
 
         function startGame(mode) {
             if(currentAudio) { currentAudio.pause(); currentAudio.currentTime = 0; }
             pColor = document.getElementById('pColor').value;
-            gameState = 'playing';
-            currentLevel = mode;
-            uiLayer.classList.add('hidden');
-            progressBar.style.display = 'block';
-            victoryMsg.style.display = 'none';
-
+            gameState = 'playing'; currentLevel = mode;
+            uiLayer.classList.add('hidden'); progressBar.style.display = 'block'; victoryMsg.style.display = 'none';
             currentAudio = playlist[mode] || playlist.endless;
             currentAudio.play().catch(() => {});
-            
             resetGame();
         }
 
         function resetGame() {
-            distance = 0;
-            player.y = groundY - player.size;
-            player.vy = 0;
-            player.rotation = 0;
-            obstacles = [];
-            if(currentLevel !== 'endless') {
-                obstacles = JSON.parse(JSON.stringify(levelData[currentLevel].map));
-            }
+            distance = 0; player.y = groundY - player.size; player.vy = 0; player.rotation = 0; obstacles = [];
+            if(currentLevel !== 'endless') obstacles = JSON.parse(JSON.stringify(levelData[currentLevel].map));
         }
 
         function update() {
             if(gameState !== 'playing') return;
-
             distance += speed;
+            if(isHoldingJump && !player.isJumping) { player.vy = -13; player.isJumping = true; }
+            player.vy += 0.8; player.y += player.vy;
 
-            // Auto-jump logic
-            if(isHoldingJump && !player.isJumping) {
-                player.vy = -13;
-                player.isJumping = true;
-            }
-
-            player.vy += 0.8;
-            player.y += player.vy;
-
-            // Kolízia so zemou
             if(player.y > groundY - player.size) {
-                player.y = groundY - player.size;
-                player.vy = 0;
-                player.isJumping = false;
+                player.y = groundY - player.size; player.vy = 0; player.isJumping = false;
                 player.rotation = Math.round(player.rotation / 90) * 90;
             }
 
-            // Logika prekážok
             obstacles.forEach(obs => {
                 let screenX = obs.x - distance + 300;
                 let obsH = obs.h || 40;
+                let yOffset = obs.yO || 0;
                 let obsY = groundY - obsH;
 
-                if(obs.t === 'S') { // Spike
-                    if(player.x + player.size - 8 > screenX && player.x + 8 < screenX + 40 && player.y + player.size > groundY - 35) {
+                if(obs.t === 'S') {
+                    let spikeYBase = groundY - yOffset;
+                    if(player.x + player.size - 10 > screenX && player.x + 10 < screenX + 40 && 
+                       player.y + player.size > spikeYBase - 35 && player.y < spikeYBase) {
                         gameOver();
                     }
-                } else if(obs.t === 'B') { // Block
+                } else if(obs.t === 'B') {
                     if(player.x + player.size > screenX && player.x < screenX + 40) {
-                        // Pristátie na bloku
-                        if(player.y + player.size >= obsY && player.y + player.size <= obsY + 15 && player.vy >= 0) {
-                            player.y = obsY - player.size;
-                            player.vy = 0;
-                            player.isJumping = false;
+                        if(player.y + player.size >= obsY && player.y + player.size <= obsY + 20 && player.vy >= 0) {
+                            player.y = obsY - player.size; player.vy = 0; player.isJumping = false;
                             player.rotation = Math.round(player.rotation / 90) * 90;
-                        } 
-                        // Náraz do boku
-                        else if(player.y + player.size > obsY + 5) {
-                            gameOver();
-                        }
+                        } else if(player.y + player.size > obsY + 5) { gameOver(); }
                     }
                 }
             });
 
             if(player.isJumping) player.rotation += 6;
 
-            // Progress bar
             if(currentLevel !== 'endless') {
                 let p = (distance / levelData[currentLevel].end) * 100;
                 progressFill.style.width = Math.min(p, 100) + "%";
                 if(distance > levelData[currentLevel].end) victory();
-            } else {
-                if(Math.random() < 0.02) {
-                    obstacles.push({x: distance + 800, t: Math.random() > 0.3 ? 'S' : 'B'});
-                }
+            } else if(Math.random() < 0.02) {
+                obstacles.push({x: distance + 800, t: Math.random() > 0.4 ? 'S' : 'B'});
             }
         }
 
         function gameOver() {
-            gameState = 'menu';
-            if(currentAudio) currentAudio.pause();
-            uiLayer.classList.remove('hidden');
-            alert("BUM! Skús to znova.");
-            resetGame();
+            gameState = 'menu'; if(currentAudio) currentAudio.pause();
+            uiLayer.classList.remove('hidden'); alert("CRASH!"); resetGame();
         }
 
         function victory() {
-            gameState = 'victory';
-            if(currentAudio) currentAudio.pause();
+            gameState = 'victory'; if(currentAudio) currentAudio.pause();
             victoryMsg.style.display = 'block';
-            setTimeout(() => {
-                uiLayer.classList.remove('hidden');
-                victoryMsg.style.display = 'none';
-                progressBar.style.display = 'none';
-            }, 3000);
+            setTimeout(() => { uiLayer.classList.remove('hidden'); victoryMsg.style.display = 'none'; }, 3000);
         }
 
         function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // Pozadie
-            ctx.fillStyle = "#0a0a15";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Zem
-            ctx.fillStyle = "#111";
-            ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
-            ctx.strokeStyle = pColor;
-            ctx.lineWidth = 2;
-            ctx.strokeRect(-5, groundY, canvas.width + 10, 2);
-
-            // Mriežka
-            ctx.strokeStyle = "rgba(255,255,255,0.05)";
-            for(let i=0; i<canvas.width + 50; i+=50) {
-                let off = distance % 50;
-                ctx.beginPath(); ctx.moveTo(i-off, groundY); ctx.lineTo(i-off, canvas.height); ctx.stroke();
-            }
+            ctx.fillStyle = "#0a0a15"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#111"; ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
+            ctx.strokeStyle = pColor; ctx.lineWidth = 2; ctx.strokeRect(-5, groundY, canvas.width + 10, 2);
 
             if(gameState === 'playing' || gameState === 'victory') {
-                // Hráč
                 ctx.save();
                 ctx.translate(player.x + player.size/2, player.y + player.size/2);
                 ctx.rotate(player.rotation * Math.PI / 180);
-                ctx.fillStyle = pColor;
-                ctx.shadowBlur = 10; ctx.shadowColor = pColor;
+                ctx.fillStyle = pColor; ctx.shadowBlur = 10; ctx.shadowColor = pColor;
                 ctx.fillRect(-player.size/2, -player.size/2, player.size, player.size);
                 ctx.strokeStyle = "white"; ctx.strokeRect(-player.size/2 + 4, -player.size/2 + 4, player.size - 8, player.size - 8);
                 ctx.restore();
 
-                // Prekážky
                 obstacles.forEach(obs => {
                     let screenX = obs.x - distance + 300;
+                    let yO = obs.yO || 0;
                     if(obs.t === 'S') {
                         ctx.fillStyle = "#222"; ctx.strokeStyle = "#ff4444";
-                        ctx.beginPath(); ctx.moveTo(screenX, groundY); ctx.lineTo(screenX+40, groundY); ctx.lineTo(screenX+20, groundY-40); ctx.closePath();
+                        ctx.beginPath(); ctx.moveTo(screenX, groundY - yO); ctx.lineTo(screenX+40, groundY - yO); ctx.lineTo(screenX+20, groundY-40 - yO); ctx.closePath();
                         ctx.fill(); ctx.stroke();
                     } else {
                         ctx.fillStyle = "#333"; ctx.strokeStyle = "white";
@@ -327,33 +225,21 @@
                     }
                 });
 
-                // Cieľová stena
                 if(currentLevel !== 'endless') {
                     let fx = levelData[currentLevel].end - distance + 300;
-                    ctx.fillStyle = "rgba(255,255,255,0.2)";
-                    ctx.fillRect(fx, 0, 40, groundY);
+                    ctx.fillStyle = "rgba(255,255,255,0.2)"; ctx.fillRect(fx, 0, 40, groundY);
                 }
             } else {
-                // Menu animácia
-                ctx.fillStyle = pColor;
-                ctx.fillRect(canvas.width/2 - 20, groundY - 40, 40, 40);
+                ctx.fillStyle = pColor; ctx.fillRect(canvas.width/2 - 20, groundY - 40, 40, 40);
             }
-
-            update();
-            requestAnimationFrame(draw);
+            update(); requestAnimationFrame(draw);
         }
 
-        // --- OVLÁDANIE (PC aj Mobil) ---
         const startJump = () => isHoldingJump = true;
         const endJump = () => isHoldingJump = false;
-
         window.addEventListener('keydown', (e) => { if(e.code === 'Space') startJump(); });
         window.addEventListener('keyup', (e) => { if(e.code === 'Space') endJump(); });
-        
-        canvas.addEventListener('mousedown', startJump);
-        canvas.addEventListener('mouseup', endJump);
-        
-        // Mobilné dotyky
+        canvas.addEventListener('mousedown', startJump); canvas.addEventListener('mouseup', endJump);
         canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startJump(); }, {passive: false});
         canvas.addEventListener('touchend', (e) => { e.preventDefault(); endJump(); }, {passive: false});
 
