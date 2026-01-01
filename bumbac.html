@@ -2,7 +2,7 @@
 <html lang="sk">
 <head>
     <meta charset="UTF-8">
-    <title>CS2 HTML5 - Fixed Movement</title>
+    <title>CS2 HTML5 - Arena Edition</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Arial', sans-serif; background: #000; }
         #crosshair {
@@ -17,9 +17,9 @@
             justify-content: space-around; color: white; font-size: 28px;
             font-weight: bold; text-shadow: 2px 2px #000; pointer-events: none;
         }
-        #ui-msg {
-            position: absolute; top: 65%; left: 50%; transform: translate(-50%, -50%);
-            color: #ff0; font-size: 20px; display: none; text-shadow: 1px 1px #000;
+        #reload-msg {
+            position: absolute; top: 60%; left: 50%; transform: translate(-50%, -50%);
+            color: #ff0; font-size: 22px; display: none; text-shadow: 2px 2px #000;
         }
         #menu {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -32,17 +32,17 @@
 <body>
 
     <div id="menu">
-        <h1 style="color: #de9b35;">CS2 PROTOTYPE</h1>
-        <p>OPRAVENÉ OTÁČANIE A POHYB</p>
-        <button id="startBtn">HRAŤ</button>
+        <h1 style="color: #de9b35;">ARENA 1v1</h1>
+        <p>MENŠIA MAPA | VIDITEĽNÉ NÁBOJE | AK-47</p>
+        <button id="startBtn">ŠTART</button>
     </div>
 
-    <div id="ui-msg">STLAČ 'R' PRE PREBITIE</div>
+    <div id="reload-msg">NÍZKY STAV MUNÍCIE - STLAČ 'R'</div>
     <div id="crosshair"></div>
     
     <div id="hud">
         <div>HP: <span id="hp">100</span></div>
-        <div>AK-47: <span id="ammo">30</span>/90</div>
+        <div>AMMO: <span id="ammo">30</span>/90</div>
         <div>BOT: <span id="botHp">100</span></div>
     </div>
 
@@ -53,10 +53,7 @@
         let ammo = 30, playerHp = 100, botHp = 100;
         let keys = {}, gameStarted = false, isReloading = false;
         let obstacles = [], bullets = [];
-
-        // FPS Control variables
-        let pitch = 0; // Hore/Dole
-        let yaw = 0;   // Do strán
+        let pitch = 0, yaw = 0;
 
         function createAK47() {
             const group = new THREE.Group();
@@ -64,12 +61,10 @@
             const woodMat = new THREE.MeshPhongMaterial({color: 0x5e2f11});
 
             const body = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.5), ironMat);
-            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.5), ironMat);
+            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.55), ironMat);
             barrel.rotation.x = Math.PI / 2; barrel.position.z = -0.45;
-            
             const stock = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.15, 0.35), woodMat);
             stock.position.set(0, -0.05, 0.4);
-
             const mag = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.25, 0.1), ironMat);
             mag.position.set(0, -0.2, -0.1); mag.rotation.x = 0.4;
 
@@ -80,53 +75,56 @@
         function init() {
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x87CEEB);
-            scene.fog = new THREE.Fog(0x87CEEB, 10, 80);
 
-            // Svetlo
-            const sun = new THREE.DirectionalLight(0xffffff, 1.2);
-            sun.position.set(10, 20, 10);
-            scene.add(sun, new THREE.AmbientLight(0xffffff, 0.6));
-
-            // HRÁČ Štruktúra (Dôležité pre správne otáčanie)
             playerGroup = new THREE.Group();
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             playerGroup.add(camera);
-            playerGroup.position.set(0, 1.7, 5);
+            playerGroup.position.set(0, 1.7, 8);
             scene.add(playerGroup);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            // Podlaha a boxy
-            const floor = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshPhongMaterial({color: 0x444444}));
+            const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+            sun.position.set(5, 15, 5);
+            scene.add(sun, new THREE.AmbientLight(0xffffff, 0.5));
+
+            // ARENA - KOCKA (Steny)
+            const arenaSize = 30;
+            const wallMat = new THREE.MeshPhongMaterial({color: 0x555555, side: THREE.BackSide});
+            const arenaBox = new THREE.Mesh(new THREE.BoxGeometry(arenaSize, 15, arenaSize), wallMat);
+            arenaBox.position.y = 7.5;
+            scene.add(arenaBox);
+
+            // Podlaha
+            const floor = new THREE.Mesh(new THREE.PlaneGeometry(arenaSize, arenaSize), new THREE.MeshPhongMaterial({color: 0x333333}));
             floor.rotation.x = -Math.PI / 2;
             scene.add(floor);
 
-            const boxGeo = new THREE.BoxGeometry(2.5, 2.5, 2.5);
+            // Menšie prekážky
+            const boxGeo = new THREE.BoxGeometry(2, 2, 2);
             const boxMat = new THREE.MeshPhongMaterial({color: 0x8b4513});
-            for(let i=0; i<15; i++) {
+            for(let i=0; i<8; i++) {
                 const box = new THREE.Mesh(boxGeo, boxMat);
-                box.position.set(Math.random()*40-20, 1.25, Math.random()*40-20);
+                box.position.set(Math.random()*20-10, 1, Math.random()*20-10);
                 scene.add(box);
                 obstacles.push(box);
             }
 
-            // AK-47
             ak47 = createAK47();
-            camera.add(ak47); // Zbraň je dieťa kamery
+            camera.add(ak47);
             ak47.position.set(0.35, -0.35, -0.6);
 
             // Bot
             bot = new THREE.Group();
-            const bB = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.6, 0.5), new THREE.MeshPhongMaterial({color: 0x111111}));
+            const bB = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.6, 0.5), new THREE.MeshPhongMaterial({color: 0x000000}));
             bB.position.y = 0.8;
             bot.add(bB);
-            bot.position.set(0, 0, -10);
+            bot.position.set(0, 0, -8);
             bot.moveDir = 1;
             scene.add(bot);
 
-            // Eventy
             window.addEventListener('keydown', e => {
                 keys[e.code] = true;
                 if(e.code === 'KeyR' && ammo < 30 && !isReloading) reload();
@@ -137,8 +135,7 @@
                 if(document.pointerLockElement === renderer.domElement) {
                     yaw -= e.movementX * 0.002;
                     pitch -= e.movementY * 0.002;
-                    pitch = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, pitch));
-                    
+                    pitch = Math.max(-1.5, Math.min(1.5, pitch));
                     playerGroup.rotation.y = yaw;
                     camera.rotation.x = pitch;
                 }
@@ -150,32 +147,47 @@
 
         function reload() {
             isReloading = true;
-            document.getElementById('ui-msg').style.display = 'none';
-            ak47.rotation.x = -0.5;
+            document.getElementById('reload-msg').style.display = 'none';
+            ak47.rotation.z = 0.5;
             setTimeout(() => {
                 ammo = 30;
                 document.getElementById('ammo').innerText = ammo;
-                ak47.rotation.x = 0;
+                ak47.rotation.z = 0;
                 isReloading = false;
-            }, 1200);
+            }, 1000);
         }
 
         function shoot() {
             if(!gameStarted || ammo <= 0 || isReloading || document.pointerLockElement !== renderer.domElement) return;
             ammo--;
             document.getElementById('ammo').innerText = ammo;
-            if(ammo === 0) document.getElementById('ui-msg').style.display = 'block';
+            if(ammo === 0) document.getElementById('reload-msg').style.display = 'block';
 
-            // Recoil animation
-            ak47.position.z += 0.05;
+            // VIDITEĽNÝ NÁBOJ (Obdĺžnik/Tracer)
+            const bulletGeo = new THREE.BoxGeometry(0.04, 0.04, 0.3); // Malý obdĺžnik
+            const bulletMat = new THREE.MeshBasicMaterial({color: 0xffff00});
+            const tracer = new THREE.Mesh(bulletGeo, bulletMat);
+            
+            // Štart z hlavne zbrane
+            tracer.position.copy(playerGroup.position);
+            tracer.rotation.copy(camera.rotation);
+            tracer.rotation.y += playerGroup.rotation.y;
 
+            const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).applyQuaternion(playerGroup.quaternion);
+            tracer.velocity = dir.multiplyScalar(1.2);
+            tracer.lookAt(tracer.position.clone().add(tracer.velocity)); // Otočenie obdĺžnika v smere letu
+            
+            bullets.push(tracer);
+            scene.add(tracer);
+
+            // Detekcia zásahu
             const ray = new THREE.Raycaster();
             ray.setFromCamera({x:0, y:0}, camera);
             const hits = ray.intersectObjects(bot.children);
             if(hits.length > 0) {
                 botHp -= 20;
                 document.getElementById('botHp').innerText = botHp;
-                if(botHp <= 0) { alert("VÍŤAZSTVO!"); location.reload(); }
+                if(botHp <= 0) { alert("VIŤAZSTVO!"); location.reload(); }
             }
         }
 
@@ -183,7 +195,6 @@
             requestAnimationFrame(animate);
             if(!gameStarted) return;
 
-            // POHYB (Klasický CS štýl)
             const oldPos = playerGroup.position.clone();
             const move = new THREE.Vector3();
             if(keys['KeyW']) move.z -= 1;
@@ -192,24 +203,26 @@
             if(keys['KeyD']) move.x += 1;
 
             if(move.length() > 0) {
-                move.normalize();
-                // Pohybujeme sa v smere, kam je otočený playerGroup (Yaw)
-                move.applyQuaternion(playerGroup.quaternion);
+                move.normalize().applyQuaternion(playerGroup.quaternion);
                 playerGroup.position.addScaledVector(move, 0.15);
             }
 
-            // Kolízie s boxami
+            // Kolízie (Arena a Boxy)
+            const limit = 14.5;
+            if(Math.abs(playerGroup.position.x) > limit || Math.abs(playerGroup.position.z) > limit) playerGroup.position.copy(oldPos);
             obstacles.forEach(box => {
-                const dist = playerGroup.position.distanceTo(new THREE.Vector3(box.position.x, playerGroup.position.y, box.position.z));
-                if(dist < 2) playerGroup.position.copy(oldPos);
+                if(playerGroup.position.distanceTo(new THREE.Vector3(box.position.x, 1.7, box.position.z)) < 1.8) playerGroup.position.copy(oldPos);
             });
 
-            // Vracanie zbrane po recoile
-            ak47.position.z = THREE.MathUtils.lerp(ak47.position.z, -0.6, 0.2);
+            // Animácia nábojov
+            bullets.forEach((b, i) => {
+                b.position.add(b.velocity);
+                if(b.position.length() > 50) { scene.remove(b); bullets.splice(i, 1); }
+            });
 
             // Bot AI
-            bot.position.x += 0.06 * bot.moveDir;
-            if(Math.abs(bot.position.x) > 10) bot.moveDir *= -1;
+            bot.position.x += 0.07 * bot.moveDir;
+            if(Math.abs(bot.position.x) > 8) bot.moveDir *= -1;
             bot.lookAt(playerGroup.position.x, 0, playerGroup.position.z);
 
             if(Math.random() < 0.02) {
