@@ -3,65 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GeoDash Long Levels</title>
+    <title>GeoDash - Podliezanie a Dvojičky</title>
     <style>
         :root { --primary: #00f2ff; }
         * { box-sizing: border-box; touch-action: none; }
-        body { 
-            margin: 0; padding: 0; overflow: hidden; 
-            font-family: 'Arial Black', sans-serif; background: #050505; 
-            color: white; display: flex; justify-content: center; align-items: center; height: 100vh;
-        }
-        #game-container {
-            position: relative; width: 100%; max-width: 800px; aspect-ratio: 16 / 9;
-            background: #000; overflow: hidden; border: 3px solid #333;
-        }
+        body { margin: 0; overflow: hidden; font-family: 'Arial Black', sans-serif; background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        #game-container { position: relative; width: 100%; max-width: 800px; aspect-ratio: 16 / 9; background: #050505; border: 2px solid #333; }
         canvas { width: 100%; height: 100%; display: block; }
-        #ui-layer { 
-            position: absolute; inset: 0; display: flex; flex-direction: column; 
-            align-items: center; justify-content: center; background: rgba(0,0,0,0.8); z-index: 10; 
-        }
+        #ui-layer { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.8); z-index: 10; }
         .hidden { display: none !important; }
-        h1 { font-size: clamp(30px, 8vw, 60px); margin: 0 0 10px 0; color: var(--primary); text-shadow: 0 0 20px var(--primary); font-style: italic; }
-        .panel { 
-            background: rgba(255,255,255,0.05); padding: 20px; border-radius: 15px; 
-            border: 1px solid var(--primary); text-align: center; width: 80%; max-width: 400px;
-        }
-        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
-        button { 
-            padding: 12px; cursor: pointer; background: var(--primary); border: none; 
-            color: black; border-radius: 5px; font-weight: bold; text-transform: uppercase; 
-        }
-        #progress-bar { 
-            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
-            width: 60%; height: 8px; background: rgba(255,255,255,0.2); border-radius: 4px; display: none;
-        }
-        #progress-fill { width: 0%; height: 100%; background: var(--primary); box-shadow: 0 0 10px var(--primary); }
-        .victory-msg { 
-            position: absolute; top: 20%; width: 100%; text-align: center; 
-            font-size: 40px; color: #00ff00; display: none; z-index: 5; text-shadow: 0 0 15px #00ff00;
-        }
+        h1 { font-size: 50px; color: var(--primary); text-shadow: 0 0 15px var(--primary); margin-bottom: 20px; }
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        button { padding: 15px 25px; cursor: pointer; background: var(--primary); border: none; color: black; border-radius: 5px; font-weight: bold; text-transform: uppercase; }
+        #progress-bar { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 70%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; display: none; }
+        #progress-fill { width: 0%; height: 100%; background: var(--primary); }
     </style>
 </head>
 <body>
 
     <div id="game-container">
         <div id="progress-bar"><div id="progress-fill"></div></div>
-        <div id="victory-msg" class="victory-msg">LEVEL COMPLETE!</div>
-
         <div id="ui-layer">
             <h1>GEODASH</h1>
-            <div class="panel">
-                <input type="color" id="pColor" value="#00f2ff" style="width:100%; height:30px; cursor:pointer; margin-bottom:10px;">
-                <div class="btn-grid">
-                    <button onclick="startGame('level1')">Level 1</button>
-                    <button onclick="startGame('level2')">Level 2</button>
-                    <button onclick="startGame('level3')">Level 3</button>
-                    <button onclick="startGame('endless')" style="background:#ffcc00">Endless</button>
-                </div>
+            <div class="btn-grid">
+                <button onclick="startGame('level1')">Level 1</button>
+                <button onclick="startGame('level2')">Level 2</button>
+                <button onclick="startGame('level3')">Level 3</button>
+                <button onclick="startGame('endless')" style="background:#ffcc00">Endless</button>
             </div>
         </div>
-
         <canvas id="gameCanvas"></canvas>
     </div>
 
@@ -71,7 +41,6 @@
         const uiLayer = document.getElementById('ui-layer');
         const progressFill = document.getElementById('progress-fill');
         const progressBar = document.getElementById('progress-bar');
-        const victoryMsg = document.getElementById('victory-msg');
 
         canvas.width = 800; canvas.height = 450;
 
@@ -86,60 +55,53 @@
         let gameState = 'menu';
         let currentLevel = null;
         let distance = 0;
-        let speed = 8;
+        let speed = 7.5;
         let isHoldingJump = false;
-        let pColor = "#00f2ff";
         const groundY = 350;
 
-        let player = { x: 100, y: groundY - 40, size: 40, vy: 0, rotation: 0, isJumping: false };
+        let player = { x: 120, y: groundY - 40, size: 40, vy: 0, rotation: 0, isJumping: false };
         let obstacles = [];
 
-        // Generovanie predĺžených levelov (S=Spike, B=Block, h=výška bloku, yO=yOffset pre spike)
+        // Typy: S = Spike, D = Double Spike, B = Block, C = Ceiling (Strop na podliezanie)
         const levelData = {
             level1: {
-                end: 12000,
+                end: 10000,
                 map: [
-                    {x:800, t:'S'}, {x:1400, t:'B'}, {x:1800, t:'S'}, {x:2300, t:'B'}, {x:2340, t:'B'},
-                    {x:2800, t:'S'}, {x:3300, t:'B'}, {x:3300, t:'S', yO:40}, // Spike na bloku
-                    {x:4000, t:'S'}, {x:4060, t:'S'}, {x:4600, t:'B'}, {x:5000, t:'B'}, {x:5000, t:'S', yO:40},
-                    {x:6000, t:'S'}, {x:6500, t:'B', h:80}, {x:6500, t:'S', yO:80},
-                    {x:7500, t:'S'}, {x:7600, t:'S'}, {x:8500, t:'B'}, {x:8540, t:'B'}, {x:9500, t:'S'}
+                    {x: 800, t:'S'}, {x: 1300, t:'C'}, {x: 1800, t:'D'}, {x: 2400, t:'B'}, 
+                    {x: 3000, t:'C'}, {x: 3600, t:'S'}, {x: 4200, t:'D'}, {x: 4800, t:'B'},
+                    {x: 5500, t:'C'}, {x: 6200, t:'D'}, {x: 7000, t:'S'}, {x: 8000, t:'B'}
                 ]
             },
             level2: {
-                end: 18000,
+                end: 15000,
                 map: [
-                    {x:800, t:'B'}, {x:840, t:'B'}, {x:1200, t:'S'}, {x:1500, t:'B', h:60}, {x:1500, t:'S', yO:60},
-                    {x:2000, t:'S'}, {x:2060, t:'S'}, {x:2500, t:'B'}, {x:2700, t:'B', h:80}, {x:2900, t:'B', h:120},
-                    {x:3500, t:'S'}, {x:3800, t:'B'}, {x:3800, t:'S', yO:40}, {x:4200, t:'S'}, {x:4260, t:'S'},
-                    {x:5000, t:'B', h:40}, {x:5100, t:'B', h:40}, {x:5500, t:'S'}, {x:6000, t:'B', h:100},
-                    {x:7000, t:'S'}, {x:7060, t:'S'}, {x:7120, t:'S'}, {x:8000, t:'B'}, {x:8000, t:'S', yO:40}
+                    {x: 700, t:'D'}, {x: 1100, t:'C'}, {x: 1500, t:'B'}, {x: 1900, t:'S'}, 
+                    {x: 2300, t:'C'}, {x: 2700, t:'D'}, {x: 3200, t:'B'}, {x: 3800, t:'C'},
+                    {x: 4500, t:'D'}, {x: 5200, t:'S'}, {x: 6000, t:'C'}, {x: 7000, t:'B'}
                 ]
             },
             level3: {
-                end: 25000,
+                end: 20000,
                 map: [
-                    {x:600, t:'S'}, {x:900, t:'B'}, {x:900, t:'S', yO:40}, {x:1300, t:'B', h:80}, {x:1300, t:'S', yO:80},
-                    {x:1800, t:'S'}, {x:1850, t:'S'}, {x:1900, t:'S'}, {x:2400, t:'B'}, {x:2440, t:'B', h:80}, {x:2480, t:'B', h:120},
-                    {x:3200, t:'S'}, {x:3500, t:'B', h:100}, {x:3500, t:'S', yO:100}, {x:4000, t:'B'}, {x:4100, t:'S'},
-                    {x:5000, t:'B', h:60}, {x:5060, t:'B', h:60}, {x:5500, t:'S'}, {x:5560, t:'S'}, {x:6200, t:'B', h:140}
+                    {x: 600, t:'C'}, {x: 1000, t:'D'}, {x: 1400, t:'S'}, {x: 1800, t:'C'},
+                    {x: 2200, t:'B'}, {x: 2600, t:'D'}, {x: 3000, t:'C'}, {x: 3500, t:'S'},
+                    {x: 4000, t:'B'}, {x: 4500, t:'C'}, {x: 5000, t:'D'}, {x: 6000, t:'S'}
                 ]
             }
         };
 
         function startGame(mode) {
             if(currentAudio) { currentAudio.pause(); currentAudio.currentTime = 0; }
-            pColor = document.getElementById('pColor').value;
             gameState = 'playing'; currentLevel = mode;
-            uiLayer.classList.add('hidden'); progressBar.style.display = 'block'; victoryMsg.style.display = 'none';
+            uiLayer.classList.add('hidden'); progressBar.style.display = 'block';
             currentAudio = playlist[mode] || playlist.endless;
             currentAudio.play().catch(() => {});
             resetGame();
         }
 
         function resetGame() {
-            distance = 0; player.y = groundY - player.size; player.vy = 0; player.rotation = 0; obstacles = [];
-            if(currentLevel !== 'endless') obstacles = JSON.parse(JSON.stringify(levelData[currentLevel].map));
+            distance = 0; player.y = groundY - player.size; player.vy = 0; player.rotation = 0;
+            obstacles = (currentLevel === 'endless') ? [] : JSON.parse(JSON.stringify(levelData[currentLevel].map));
         }
 
         function update() {
@@ -155,22 +117,29 @@
 
             obstacles.forEach(obs => {
                 let screenX = obs.x - distance + 300;
-                let obsH = obs.h || 40;
-                let yOffset = obs.yO || 0;
-                let obsY = groundY - obsH;
-
-                if(obs.t === 'S') {
-                    let spikeYBase = groundY - yOffset;
-                    if(player.x + player.size - 10 > screenX && player.x + 10 < screenX + 40 && 
-                       player.y + player.size > spikeYBase - 35 && player.y < spikeYBase) {
+                
+                // Kolízia s trojuholníkmi (S = jeden, D = dva)
+                if(obs.t === 'S' || obs.t === 'D') {
+                    let width = (obs.t === 'D' ? 80 : 40);
+                    if(player.x + player.size - 12 > screenX && player.x + 12 < screenX + width && player.y + player.size > groundY - 38) {
                         gameOver();
                     }
-                } else if(obs.t === 'B') {
+                } 
+                // Kolízia s blokmi (B)
+                else if(obs.t === 'B') {
                     if(player.x + player.size > screenX && player.x < screenX + 40) {
-                        if(player.y + player.size >= obsY && player.y + player.size <= obsY + 20 && player.vy >= 0) {
-                            player.y = obsY - player.size; player.vy = 0; player.isJumping = false;
+                        if(player.y + player.size >= groundY - 40 && player.y + player.size <= groundY - 20 && player.vy >= 0) {
+                            player.y = groundY - 40 - player.size; player.vy = 0; player.isJumping = false;
                             player.rotation = Math.round(player.rotation / 90) * 90;
-                        } else if(player.y + player.size > obsY + 5) { gameOver(); }
+                        } else if(player.y + player.size > groundY - 35) { gameOver(); }
+                    }
+                }
+                // Kolízia so stropom (C) - Musíš podliezť
+                else if(obs.t === 'C') {
+                    if(player.x + player.size > screenX && player.x < screenX + 100) {
+                        if(player.y < 260) { // Ak narazíš hlavou do stropu
+                            gameOver();
+                        }
                     }
                 }
             });
@@ -181,57 +150,57 @@
                 let p = (distance / levelData[currentLevel].end) * 100;
                 progressFill.style.width = Math.min(p, 100) + "%";
                 if(distance > levelData[currentLevel].end) victory();
-            } else if(Math.random() < 0.02) {
-                obstacles.push({x: distance + 800, t: Math.random() > 0.4 ? 'S' : 'B'});
+            } else if(Math.random() < 0.01) {
+                let types = ['S', 'D', 'B', 'C'];
+                obstacles.push({x: distance + 800, t: types[Math.floor(Math.random()*4)]});
             }
         }
 
         function gameOver() {
-            gameState = 'menu'; if(currentAudio) currentAudio.pause();
-            uiLayer.classList.remove('hidden'); alert("CRASH!"); resetGame();
+            gameState = 'menu'; currentAudio.pause();
+            uiLayer.classList.remove('hidden'); alert("Skús to znova!"); resetGame();
         }
 
         function victory() {
-            gameState = 'victory'; if(currentAudio) currentAudio.pause();
-            victoryMsg.style.display = 'block';
-            setTimeout(() => { uiLayer.classList.remove('hidden'); victoryMsg.style.display = 'none'; }, 3000);
+            gameState = 'menu'; currentAudio.pause();
+            alert("LEVEL COMPLETE!"); uiLayer.classList.remove('hidden');
         }
 
         function draw() {
             ctx.fillStyle = "#0a0a15"; ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = "#111"; ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
-            ctx.strokeStyle = pColor; ctx.lineWidth = 2; ctx.strokeRect(-5, groundY, canvas.width + 10, 2);
+            ctx.strokeStyle = "#00f2ff"; ctx.lineWidth = 2; ctx.strokeRect(-5, groundY, canvas.width + 10, 2);
 
-            if(gameState === 'playing' || gameState === 'victory') {
+            if(gameState === 'playing') {
+                // Hráč
                 ctx.save();
                 ctx.translate(player.x + player.size/2, player.y + player.size/2);
                 ctx.rotate(player.rotation * Math.PI / 180);
-                ctx.fillStyle = pColor; ctx.shadowBlur = 10; ctx.shadowColor = pColor;
-                ctx.fillRect(-player.size/2, -player.size/2, player.size, player.size);
+                ctx.fillStyle = "#00f2ff"; ctx.fillRect(-player.size/2, -player.size/2, player.size, player.size);
                 ctx.strokeStyle = "white"; ctx.strokeRect(-player.size/2 + 4, -player.size/2 + 4, player.size - 8, player.size - 8);
                 ctx.restore();
 
+                // Prekážky
                 obstacles.forEach(obs => {
                     let screenX = obs.x - distance + 300;
-                    let yO = obs.yO || 0;
-                    if(obs.t === 'S') {
-                        ctx.fillStyle = "#222"; ctx.strokeStyle = "#ff4444";
-                        ctx.beginPath(); ctx.moveTo(screenX, groundY - yO); ctx.lineTo(screenX+40, groundY - yO); ctx.lineTo(screenX+20, groundY-40 - yO); ctx.closePath();
-                        ctx.fill(); ctx.stroke();
-                    } else {
-                        ctx.fillStyle = "#333"; ctx.strokeStyle = "white";
-                        ctx.fillRect(screenX, groundY - (obs.h || 40), 40, (obs.h || 40));
-                        ctx.strokeRect(screenX, groundY - (obs.h || 40), 40, (obs.h || 40));
+                    if(obs.t === 'S' || obs.t === 'D') {
+                        ctx.fillStyle = "#333"; ctx.strokeStyle = "#ff4444";
+                        let count = (obs.t === 'D' ? 2 : 1);
+                        for(let i=0; i<count; i++) {
+                            ctx.beginPath(); ctx.moveTo(screenX + (i*40), groundY); ctx.lineTo(screenX + 40 + (i*40), groundY); ctx.lineTo(screenX + 20 + (i*40), groundY-40); ctx.closePath(); ctx.fill(); ctx.stroke();
+                        }
+                    } else if(obs.t === 'B') {
+                        ctx.fillStyle = "#444"; ctx.strokeStyle = "white";
+                        ctx.fillRect(screenX, groundY-40, 40, 40); ctx.strokeRect(screenX, groundY-40, 40, 40);
+                    } else if(obs.t === 'C') {
+                        ctx.fillStyle = "#444"; ctx.strokeStyle = "#00f2ff";
+                        ctx.fillRect(screenX, 150, 100, 60); ctx.strokeRect(screenX, 150, 100, 60);
+                        // Čiary naznačujúce strop
+                        ctx.beginPath(); ctx.moveTo(screenX, 210); ctx.lineTo(screenX+100, 210); ctx.stroke();
                     }
                 });
-
-                if(currentLevel !== 'endless') {
-                    let fx = levelData[currentLevel].end - distance + 300;
-                    ctx.fillStyle = "rgba(255,255,255,0.2)"; ctx.fillRect(fx, 0, 40, groundY);
-                }
-            } else {
-                ctx.fillStyle = pColor; ctx.fillRect(canvas.width/2 - 20, groundY - 40, 40, 40);
             }
+
             update(); requestAnimationFrame(draw);
         }
 
@@ -239,7 +208,6 @@
         const endJump = () => isHoldingJump = false;
         window.addEventListener('keydown', (e) => { if(e.code === 'Space') startJump(); });
         window.addEventListener('keyup', (e) => { if(e.code === 'Space') endJump(); });
-        canvas.addEventListener('mousedown', startJump); canvas.addEventListener('mouseup', endJump);
         canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startJump(); }, {passive: false});
         canvas.addEventListener('touchend', (e) => { e.preventDefault(); endJump(); }, {passive: false});
 
