@@ -2,30 +2,29 @@
 <html lang="sk">
 <head>
     <meta charset="UTF-8">
-    <title>CS 1v1 Arena - Symmetric Map</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CS Mobile 1v1 - Arena</title>
     <style>
-        body { margin: 0; overflow: hidden; font-family: 'Arial', sans-serif; background: #111; }
-        #crosshair {
-            position: absolute; top: 50%; left: 50%; width: 20px; height: 20px;
-            transform: translate(-50%, -50%); pointer-events: none; z-index: 10;
-        }
-        #crosshair:before { content: ''; position: absolute; top: 9px; left: 0; width: 20px; height: 2px; background: #0f0; }
-        #crosshair:after { content: ''; position: absolute; top: 0; left: 9px; width: 2px; height: 22px; background: #0f0; }
+        body { margin: 0; overflow: hidden; font-family: sans-serif; background: #000; touch-action: none; }
+        #ui { position: absolute; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
         
-        #hud {
-            position: absolute; bottom: 30px; width: 100%; display: flex;
-            justify-content: space-around; color: #fff; font-size: 28px;
-            font-weight: bold; text-shadow: 2px 2px #000; pointer-events: none;
-        }
-        #weapon-info { position: absolute; bottom: 80px; right: 50px; color: #fb0; font-size: 20px; font-weight: bold; }
+        /* HUD */
+        #hud { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; color: white; font-size: 18px; font-weight: bold; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 10px; }
         
-        #menu {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: rgba(0,0,0,0.95); color: white; padding: 40px;
-            text-align: center; border: 2px solid #de9b35; z-index: 100;
-        }
-        .btn { background: #de9b35; border: none; padding: 12px 30px; font-size: 18px; font-weight: bold; cursor: pointer; margin: 10px; color: #000; transition: 0.2s; }
-        .btn:hover { background: #fff; transform: scale(1.1); }
+        /* Mobile Controls */
+        .touch-ctrl { pointer-events: auto; position: absolute; background: rgba(255,255,255,0.2); border-radius: 50%; }
+        #joystick-base { bottom: 40px; left: 40px; width: 100px; height: 100px; }
+        #joystick-stick { position: absolute; top: 25px; left: 25px; width: 50px; height: 50px; background: rgba(255,255,255,0.5); border-radius: 50%; }
+        #shoot-btn { bottom: 50px; right: 40px; width: 80px; height: 80px; background: rgba(255,0,0,0.4); border: 2px solid white; display: flex; align-items: center; justify-content: center; color: white; }
+        
+        /* Weapon Slots */
+        #slots { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 10px; pointer-events: auto; }
+        .slot { width: 50px; height: 50px; background: rgba(0,0,0,0.7); border: 1px solid #888; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+        .active-slot { border-color: #fb0; background: rgba(251, 176, 0, 0.3); }
+
+        #crosshair { position: absolute; top: 50%; left: 50%; width: 16px; height: 16px; border: 2px solid lime; border-radius: 50%; transform: translate(-50%, -50%); }
+        #menu { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; color: white; pointer-events: auto; }
+        button.start-btn { padding: 15px 40px; font-size: 20px; background: #fb0; border: none; cursor: pointer; border-radius: 5px; }
         #flash { position: absolute; top:0; left:0; width:100%; height:100%; background: red; opacity:0; pointer-events:none; }
     </style>
 </head>
@@ -33,130 +32,120 @@
 
     <div id="flash"></div>
     <div id="menu">
-        <h1 style="color: #de9b35; letter-spacing: 5px;">AIM_MAP 1v1</h1>
-        <p>1 - AK47 | 2 - NÔŽ | R - PREBIŤ</p>
-        <button class="btn" onclick="startGame(0.01)">EASY BOT</button>
-        <button class="btn" onclick="startGame(0.025)">MEDIUM BOT</button>
-        <button class="btn" onclick="startGame(0.05)">HARD BOT</button>
+        <h1>CS MOBILE 1v1</h1>
+        <p>Bot ťa nevidí cez stenu!</p>
+        <button class="start-btn" onclick="startGame()">HRAŤ</button>
     </div>
 
-    <div id="crosshair"></div>
-    <div id="weapon-info"><span id="curWeapon">AK-47</span></div>
-    
-    <div id="hud">
-        <div>HP: <span id="hp">100</span></div>
-        <div>AMMO: <span id="ammo">30</span>/90</div>
-        <div>BOT: <span id="botHp">100</span></div>
+    <div id="ui">
+        <div id="crosshair"></div>
+        <div id="hud">
+            <div>HP: <span id="hp">100</span></div>
+            <div>AMMO: <span id="ammo">30</span></div>
+            <div>BOT: <span id="botHp">100</span></div>
+        </div>
+
+        <div id="joystick-base" class="touch-ctrl"><div id="joystick-stick"></div></div>
+        <div id="shoot-btn" class="touch-ctrl">FIRE</div>
+        
+        <div id="slots">
+            <div class="slot" id="s1" onclick="switchWeapon(1)">1</div>
+            <div class="slot" id="s2" onclick="switchWeapon(2)">2</div>
+            <div class="slot" id="s3" onclick="switchWeapon(3)">3</div>
+        </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
 
     <script>
-        let scene, camera, renderer, ak47, knife, bot, playerGroup;
-        let ammo = 30, playerHp = 100, botHp = 100;
-        let keys = {}, gameStarted = false, isReloading = false;
-        let isShooting = false, lastShotTime = 0, currentWeapon = 'ak47';
-        let botAimChance = 0.02; 
+        let scene, camera, renderer, playerGroup, bot;
+        let weapons = { 1: null, 2: null, 3: null }; // Knife, Pistol, AK
+        let currentSlot = 3;
+        let playerHp = 100, botHp = 100, ammo = 30;
+        let gameStarted = false;
         let obstacles = [], bullets = [];
         let pitch = 0, yaw = 0;
 
-        function createHuman(color) {
-            const group = new THREE.Group();
-            const mat = new THREE.MeshPhongMaterial({color: color});
-            const skin = new THREE.MeshPhongMaterial({color: 0xffdbac});
-
-            const torso = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.9, 0.3), mat);
-            torso.position.y = 1.05; torso.name = "body";
-            
-            const head = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.35), skin);
-            head.position.y = 1.7; head.name = "head";
-
-            const arm = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.6, 0.2), mat);
-            arm.position.set(0.4, 1.1, -0.2);
-            arm.rotation.x = -Math.PI/4;
-
-            const bGun = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.65), new THREE.MeshPhongMaterial({color: 0x111111}));
-            bGun.position.set(0.4, 1.1, -0.5);
-
-            group.add(torso, head, arm, bGun);
-            return group;
-        }
-
-        function createAK47() {
-            const group = new THREE.Group();
-            const iron = new THREE.MeshPhongMaterial({color: 0x222222});
-            const wood = new THREE.MeshPhongMaterial({color: 0x5e2f11});
-            const body = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.5), iron);
-            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.6), iron);
-            barrel.rotation.x = Math.PI/2; barrel.position.z = -0.5;
-            const stock = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.18, 0.35), wood);
-            stock.position.set(0, -0.05, 0.4);
-            group.add(body, barrel, stock);
-            return group;
-        }
+        // Joystick state
+        let moveState = { x: 0, y: 0 };
+        let isMobile = false;
 
         function init() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x222222);
-
+            scene.background = new THREE.Color(0x333333);
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+            
             playerGroup = new THREE.Group();
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             playerGroup.add(camera);
-            // SPAWN ZA KRABICOU (Hráč)
-            playerGroup.position.set(0, 1.7, 16);
+            playerGroup.position.set(0, 1.6, 15);
             scene.add(playerGroup);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-            const sun = new THREE.DirectionalLight(0xffffff, 1);
-            sun.position.set(10, 20, 10);
+            scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+            const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+            sun.position.set(5, 10, 5);
             scene.add(sun);
 
-            // Podlaha
-            const floor = new THREE.Mesh(new THREE.PlaneGeometry(50, 50), new THREE.MeshPhongMaterial({color: 0x444444}));
-            floor.rotation.x = -Math.PI / 2;
+            // Floor
+            const floor = new THREE.Mesh(new THREE.PlaneGeometry(50, 50), new THREE.MeshPhongMaterial({color: 0x222222}));
+            floor.rotation.x = -Math.PI/2;
             scene.add(floor);
 
-            // SYMETRICKÉ KRABICE (Prekážky)
+            // Symmetric Boxes
             const boxGeo = new THREE.BoxGeometry(3, 3, 3);
-            const boxMat = new THREE.MeshPhongMaterial({color: 0x8b4513});
-            
-            const boxPositions = [
-                {x: 0, z: 12},  // Krabica pred hráčom (krytie pri spawne)
-                {x: 0, z: -12}, // Krabica pred botom
-                {x: -7, z: 0},  {x: 7, z: 0}, // Bočné krabice v strede
-                {x: -12, z: 12}, {x: 12, z: 12}, // Rohové krabice hráč
-                {x: -12, z: -12}, {x: 12, z: -12} // Rohové krabice bot
-            ];
-
-            boxPositions.forEach(pos => {
+            const boxMat = new THREE.MeshPhongMaterial({color: 0x5d4037});
+            const positions = [{x:0, z:10}, {x:0, z:-10}, {x:8, z:0}, {x:-8, z:0}];
+            positions.forEach(p => {
                 const box = new THREE.Mesh(boxGeo, boxMat);
-                box.position.set(pos.x, 1.5, pos.z);
+                box.position.set(p.x, 1.5, p.z);
                 scene.add(box);
                 obstacles.push(box);
             });
 
-            ak47 = createAK47(); camera.add(ak47); ak47.position.set(0.4, -0.4, -0.7);
-            knife = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1, 0.4), new THREE.MeshPhongMaterial({color: 0xaaaaaa}));
-            camera.add(knife); knife.position.set(0.4, -0.4, -0.5); knife.visible = false;
+            // Weapons
+            weapons[1] = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.3), new THREE.MeshPhongMaterial({color: 0xaaaaaa})); // Nôž
+            weapons[2] = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.1, 0.2), new THREE.MeshPhongMaterial({color: 0x222222})); // Pištoľ
+            weapons[3] = new THREE.Group(); // AK47
+            const akBody = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.5), new THREE.MeshPhongMaterial({color: 0x111111}));
+            weapons[3].add(akBody);
 
-            bot = createHuman(0x114411); // Zelený tím
-            bot.position.set(0, 0, -16); // SPAWN ZA KRABICOU (Bot)
+            Object.values(weapons).forEach(w => {
+                if(!w) return;
+                w.position.set(0.3, -0.3, -0.5);
+                w.visible = false;
+                camera.add(w);
+            });
+            switchWeapon(3);
+
+            // Bot
+            bot = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.5, 0.3), new THREE.MeshPhongMaterial({color: 0xaa0000}));
+            body.position.y = 0.75;
+            bot.add(body);
+            bot.position.set(0, 0, -15);
             scene.add(bot);
 
-            window.addEventListener('keydown', e => {
-                keys[e.code] = true;
-                if(e.code === 'Digit1') switchWeapon('ak47');
-                if(e.code === 'Digit2') switchWeapon('knife');
-                if(e.code === 'KeyR' && ammo < 30 && !isReloading) reload();
-            });
-            window.addEventListener('keyup', e => keys[e.code] = false);
+            setupControls();
+            animate();
+        }
 
-            document.addEventListener('mousemove', e => {
-                if(document.pointerLockElement === renderer.domElement) {
+        function switchWeapon(slot) {
+            currentSlot = slot;
+            [1,2,3].forEach(s => {
+                weapons[s].visible = (s === slot);
+                document.getElementById('s'+s).className = 'slot' + (s === slot ? ' active-slot' : '');
+            });
+            ammo = (slot === 3) ? 30 : (slot === 2 ? 12 : 0);
+            document.getElementById('ammo').innerText = ammo;
+        }
+
+        function setupControls() {
+            // Mouse look for PC
+            document.addEventListener('mousemove', (e) => {
+                if (document.pointerLockElement) {
                     yaw -= e.movementX * 0.002;
                     pitch -= e.movementY * 0.002;
                     pitch = Math.max(-1.5, Math.min(1.5, pitch));
@@ -165,112 +154,112 @@
                 }
             });
 
-            window.addEventListener('mousedown', () => isShooting = true);
-            window.addEventListener('mouseup', () => isShooting = false);
-            animate();
-        }
+            // Touch look for Mobile
+            let touchX, touchY;
+            document.addEventListener('touchstart', e => { touchX = e.touches[0].pageX; touchY = e.touches[0].pageY; });
+            document.addEventListener('touchmove', e => {
+                let dx = e.touches[0].pageX - touchX;
+                let dy = e.touches[0].pageY - touchY;
+                yaw -= dx * 0.005;
+                pitch -= dy * 0.005;
+                pitch = Math.max(-1.5, Math.min(1.5, pitch));
+                playerGroup.rotation.y = yaw;
+                camera.rotation.x = pitch;
+                touchX = e.touches[0].pageX; touchY = e.touches[0].pageY;
+            });
 
-        function switchWeapon(type) {
-            currentWeapon = type;
-            ak47.visible = (type === 'ak47');
-            knife.visible = (type === 'knife');
-            document.getElementById('curWeapon').innerText = type.toUpperCase();
-        }
+            // Joystick Logic
+            const stick = document.getElementById('joystick-stick');
+            document.getElementById('joystick-base').addEventListener('touchmove', e => {
+                const rect = e.target.getBoundingClientRect();
+                let x = (e.touches[0].clientX - rect.left - 50) / 50;
+                let y = (e.touches[0].clientY - rect.top - 50) / 50;
+                moveState.x = Math.max(-1, Math.min(1, x));
+                moveState.y = Math.max(-1, Math.min(1, y));
+                stick.style.transform = `translate(${moveState.x*25}px, ${moveState.y*25}px)`;
+            });
+            document.getElementById('joystick-base').addEventListener('touchend', () => {
+                moveState = {x:0, y:0}; stick.style.transform = `translate(0,0)`;
+            });
 
-        function reload() {
-            isReloading = true;
-            ak47.rotation.x = 0.5;
-            setTimeout(() => { ammo = 30; document.getElementById('ammo').innerText = ammo; ak47.rotation.x = 0; isReloading = false; }, 1000);
+            document.getElementById('shoot-btn').addEventListener('touchstart', shoot);
+            window.addEventListener('mousedown', shoot);
+            window.addEventListener('keydown', e => {
+                if(e.code === 'Digit1') switchWeapon(1);
+                if(e.code === 'Digit2') switchWeapon(2);
+                if(e.code === 'Digit3') switchWeapon(3);
+            });
         }
 
         function shoot() {
-            const now = Date.now();
-            if(currentWeapon === 'ak47') {
-                if(now - lastShotTime < 110 || ammo <= 0 || isReloading) return;
-                lastShotTime = now; ammo--;
-                document.getElementById('ammo').innerText = ammo;
-                
-                ak47.position.z += 0.05; // Recoil
+            if(!gameStarted || ammo <= 0 && currentSlot !== 1) return;
+            if(currentSlot !== 1) ammo--;
+            document.getElementById('ammo').innerText = ammo;
 
-                const tr = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 1), new THREE.MeshBasicMaterial({color: 0xffff00}));
-                tr.position.copy(playerGroup.position);
-                tr.rotation.copy(camera.rotation);
-                tr.rotation.y += playerGroup.rotation.y;
-                const dir = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion).applyQuaternion(playerGroup.quaternion);
-                tr.velocity = dir.multiplyScalar(2.5);
-                bullets.push(tr); scene.add(tr);
-
-                checkHit(25, 50);
-            } else {
-                if(now - lastShotTime < 400) return;
-                lastShotTime = now;
-                knife.position.z -= 0.3; setTimeout(()=>knife.position.z += 0.3, 100);
-                if(playerGroup.position.distanceTo(bot.position) < 3.5) checkHit(50, 100);
-            }
-        }
-
-        function checkHit(bodyDmg, headDmg) {
             const ray = new THREE.Raycaster();
             ray.setFromCamera({x:0, y:0}, camera);
-            const hits = ray.intersectObjects(bot.children);
+            
+            // Kontrola či nie je v ceste stena
+            const hits = ray.intersectObjects([...obstacles, bot], true);
             if(hits.length > 0) {
-                const hitName = hits[0].object.name;
-                botHp -= (hitName === "head") ? headDmg : bodyDmg;
-                document.getElementById('botHp').innerText = botHp;
-                if(botHp <= 0) { alert("VYHRAL SI KOLO!"); location.reload(); }
+                if(hits[0].object.parent === bot || hits[0].object === bot) {
+                    botHp -= (currentSlot === 3) ? 25 : 15;
+                    document.getElementById('botHp').innerText = botHp;
+                    if(botHp <= 0) { alert("VYHRAL SI!"); location.reload(); }
+                }
             }
         }
 
         function animate() {
             requestAnimationFrame(animate);
             if(!gameStarted) return;
-            if(isShooting) shoot();
 
+            // Move
+            const dir = new THREE.Vector3(moveState.x, 0, moveState.y);
+            // Keyboard fallbacks
+            let kx = 0, kz = 0;
+            // (Tu by bola logika pre WASD klávesy)
+            
+            dir.normalize().applyQuaternion(playerGroup.quaternion);
             const oldPos = playerGroup.position.clone();
-            const move = new THREE.Vector3();
-            if(keys['KeyW']) move.z -= 1; if(keys['KeyS']) move.z += 1;
-            if(keys['KeyA']) move.x -= 1; if(keys['KeyD']) move.x += 1;
-            if(move.length() > 0) {
-                move.normalize().applyQuaternion(playerGroup.quaternion);
-                playerGroup.position.addScaledVector(move, 0.16);
-            }
+            playerGroup.position.addScaledVector(dir, 0.15);
 
-            // Kolízie s krabicami a steny
-            obstacles.forEach(box => {
-                if(playerGroup.position.distanceTo(new THREE.Vector3(box.position.x, 1.7, box.position.z)) < 2.2) playerGroup.position.copy(oldPos);
-            });
-            if(Math.abs(playerGroup.position.x) > 24 || Math.abs(playerGroup.position.z) > 24) playerGroup.position.copy(oldPos);
-
-            ak47.position.z = THREE.MathUtils.lerp(ak47.position.z, -0.7, 0.2);
-
-            bullets.forEach((b, i) => { 
-                b.position.add(b.velocity); 
-                if(b.position.distanceTo(playerGroup.position) > 60) { scene.remove(b); bullets.splice(i,1); }
+            // Wall Collision
+            obstacles.forEach(b => {
+                if(playerGroup.position.distanceTo(b.position) < 2.2) playerGroup.position.copy(oldPos);
             });
 
-            // Inteligentný Bot - Strafuje a mieri
-            bot.position.x += Math.sin(Date.now() * 0.002) * 0.1; 
+            // BOT LOGIC - Raycast visibility check
             bot.lookAt(playerGroup.position.x, 0, playerGroup.position.z);
-
-            if(Math.random() < botAimChance) {
-                const dmg = (Math.random() > 0.85) ? 50 : 25;
-                playerHp -= dmg;
-                document.getElementById('hp').innerText = playerHp;
-                document.getElementById('flash').style.opacity = 0.5;
-                setTimeout(()=>document.getElementById('flash').style.opacity = 0, 50);
-                if(playerHp <= 0) { alert("BOL SI ELIMINOVANÝ!"); location.reload(); }
+            
+            const botRay = new THREE.Raycaster();
+            const botDir = new THREE.Vector3().subVectors(playerGroup.position, bot.position).normalize();
+            botRay.set(bot.position, botDir);
+            
+            const botVision = botRay.intersectObjects([...obstacles, playerGroup], true);
+            
+            // Ak bot vidí ako prvého hráča (nie krabicu), môže strieľať
+            if(botVision.length > 0 && (botVision[0].object.parent === playerGroup || botVision[0].object === playerGroup)) {
+                if(Math.random() < 0.02) {
+                    playerHp -= 5;
+                    document.getElementById('hp').innerText = playerHp;
+                    document.getElementById('flash').style.opacity = 0.3;
+                    setTimeout(()=>document.getElementById('flash').style.opacity = 0, 50);
+                    if(playerHp <= 0) { alert("PREHRAL SI!"); location.reload(); }
+                }
             }
 
             renderer.render(scene, camera);
         }
 
-        window.startGame = (chance) => {
-            botAimChance = chance;
+        function startGame() {
             gameStarted = true;
             document.getElementById('menu').style.display = 'none';
             init();
-            renderer.domElement.requestPointerLock();
-        };
+            if(!/Android|iPhone/i.test(navigator.userAgent)) {
+                renderer.domElement.requestPointerLock();
+            }
+        }
     </script>
 </body>
 </html>
